@@ -95,7 +95,7 @@ final imageHeight = isSmallPhone ? 180.0 : (isTablet ? 240.0 : 210.0);
   color: Colors.white,
   child: product.image.isNotEmpty
       ? Image.network(
-          'http://localhost:3000/image-proxy?url=${Uri.encodeComponent(product.image)}',
+          'https://paishop-api.onrender.com/image-proxy?url=${Uri.encodeComponent(product.image)}',
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
           errorBuilder: (context, error, stackTrace) {

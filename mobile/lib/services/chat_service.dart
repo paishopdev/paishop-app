@@ -3,18 +3,24 @@ import 'package:http/http.dart' as http;
 import '../models/chat_item.dart';
 
 class ChatService {
-  static const String baseUrl = "http://localhost:3000/api/chats";
+  static const String baseUrl = "https://paishop-api.onrender.com/api/chats";
 
   static Future<List<ChatItem>> getUserChats(String userId) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/user/$userId"),
-      headers: {"Content-Type": "application/json"},
-    );
+    try {
+      final response = await http
+          .get(
+            Uri.parse("$baseUrl/user/$userId"),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 20));
 
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      return data.map((e) => ChatItem.fromJson(e)).toList();
-    } else {
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        return data.map((e) => ChatItem.fromJson(e)).toList();
+      } else {
+        throw Exception("Sohbetler alınamadı");
+      }
+    } catch (e) {
       throw Exception("Sohbetler alınamadı");
     }
   }
@@ -23,42 +29,60 @@ class ChatService {
     required String userId,
     required String firstMessage,
   }) async {
-    final response = await http.post(
-      Uri.parse(baseUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "userId": userId,
-        "firstMessage": firstMessage,
-      }),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse(baseUrl),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "userId": userId,
+              "firstMessage": firstMessage,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
 
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception("Sohbet oluşturulamadı");
+      }
+    } catch (e) {
       throw Exception("Sohbet oluşturulamadı");
     }
   }
 
   static Future<Map<String, dynamic>> getChatById(String chatId) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/$chatId"),
-      headers: {"Content-Type": "application/json"},
-    );
+    try {
+      final response = await http
+          .get(
+            Uri.parse("$baseUrl/$chatId"),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 20));
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception("Sohbet alınamadı");
+      }
+    } catch (e) {
       throw Exception("Sohbet alınamadı");
     }
   }
 
   static Future<void> deleteChat(String chatId) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/$chatId"),
-      headers: {"Content-Type": "application/json"},
-    );
+    try {
+      final response = await http
+          .delete(
+            Uri.parse("$baseUrl/$chatId"),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 20));
 
-    if (response.statusCode != 200) {
+      if (response.statusCode != 200) {
+        throw Exception("Sohbet silinemedi");
+      }
+    } catch (e) {
       throw Exception("Sohbet silinemedi");
     }
   }
@@ -67,17 +91,23 @@ class ChatService {
     required String chatId,
     required String message,
   }) async {
-    final response = await http.post(
-      Uri.parse("$baseUrl/$chatId/send"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "message": message,
-      }),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse("$baseUrl/$chatId/send"),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "message": message,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception("Mesaj gönderilemedi");
+      }
+    } catch (e) {
       throw Exception("Mesaj gönderilemedi");
     }
   }

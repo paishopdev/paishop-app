@@ -5,7 +5,7 @@ import '../models/product.dart';
 class ApiService {
   // Şimdilik local test için kalıyor.
   // Canlı backend adresini aldıktan sonra burayı değiştireceğiz.
-  static const String baseUrl = "http://localhost:3000";
+  static const String baseUrl = "https://paishop-api.onrender.com";
 
   static Future<void> saveChatMessage({
     required String chatId,
