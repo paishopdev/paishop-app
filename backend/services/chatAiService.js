@@ -492,26 +492,15 @@ function buildFallbackActions(products = [], planner = {}, userMessage = '') {
     return actions;
   }
 
-  if (products.length >= 2) {
+  const sameCategoryProducts = filterProductsToSameCategory(products, userMessage);
+
+  if (sameCategoryProducts.length >= 2) {
     actions.push('Karşılaştır');
+    actions.push('En iyisini seç');
   }
 
-  actions.push('Daha ucuz alternatifler');
   actions.push('Benzer ürünler');
-  actions.push('En iyisini seç');
-
-  const normalizedMessage = String(userMessage).toLowerCase();
-
-  if (
-    normalizedMessage.includes('telefon') ||
-    normalizedMessage.includes('kulaklık') ||
-    normalizedMessage.includes('mouse') ||
-    normalizedMessage.includes('tablet') ||
-    normalizedMessage.includes('şarj') ||
-    normalizedMessage.includes('sarj')
-  ) {
-    actions.push('Fiyat performans öner');
-  }
+  actions.push('Daha ucuz alternatifler');
 
   return [...new Set(actions)].slice(0, 4);
 }
@@ -540,7 +529,9 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
     return null;
   }
 
-  const compareProducts = (finalProducts || []).slice(0, 3).map((p) => ({
+  const compareProducts = filterProductsToSameCategory(finalProducts || [], userMessage)
+  .slice(0, 3)
+  .map((p) => ({
     name: p.name || '',
     price: p.price || '',
     platform: p.platform || '',
@@ -954,6 +945,94 @@ function extractRecentProductsForComparison(previousMessages = [], limit = 6) {
   return unique.slice(0, limit);
 }
 
+function extractLatestAssistantProductBatch(previousMessages = []) {
+  for (let i = previousMessages.length - 1; i >= 0; i--) {
+    const msg = previousMessages[i];
+
+    if (
+      msg &&
+      msg.role === 'assistant' &&
+      Array.isArray(msg.products) &&
+      msg.products.length > 0
+    ) {
+      return normalizeProducts(msg.products);
+    }
+  }
+
+  return [];
+}
+
+function detectCategoryFromText(text = '') {
+  const t = normalizeText(text);
+
+  if (t.includes('kulaklik')) return 'kulaklik';
+  if (t.includes('telefon')) return 'telefon';
+  if (t.includes('mouse')) return 'mouse';
+  if (t.includes('klavye')) return 'klavye';
+  if (t.includes('tablet')) return 'tablet';
+  if (t.includes('sarj') || t.includes('powerbank')) return 'sarj';
+  if (t.includes('parfum')) return 'parfum';
+  if (t.includes('kapatici') || t.includes('makyaj')) return 'kozmetik';
+  if (t.includes('ayakkabi')) return 'ayakkabi';
+
+  return null;
+}
+
+function getProductCategory(product = {}) {
+  return detectCategoryFromText(
+    `${product.name || ''} ${product.short_reason || ''}`
+  );
+}
+
+function filterProductsToSameCategory(products = [], fallbackText = '') {
+  if (!products.length) return [];
+
+  const categoryCounts = {};
+
+  for (const product of products) {
+    const category = getProductCategory(product) || detectCategoryFromText(fallbackText);
+    if (!category) continue;
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+  }
+
+  const bestCategory =
+    Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+    detectCategoryFromText(fallbackText);
+
+  if (!bestCategory) return products.slice(0, 4);
+
+  return products.filter((p) => getProductCategory(p) === bestCategory).slice(0, 4);
+}
+
+function isSimilarRequest(userMessage = '') {
+  const text = normalizeText(userMessage);
+  return (
+    text === 'benzer urunler' ||
+    text.includes('benzer urun') ||
+    text.includes('benzerini goster')
+  );
+}
+
+function isBestChoiceRequest(userMessage = '') {
+  const text = normalizeText(userMessage);
+  return (
+    text === 'en iyisini sec' ||
+    text.includes('en iyisini sec') ||
+    text.includes('en iyi secim') ||
+    text.includes('hangisini alayim') ||
+    text.includes('hangisi daha iyi')
+  );
+}
+
+function isCheaperRequest(userMessage = '') {
+  const text = normalizeText(userMessage);
+  return (
+    text === 'daha ucuz alternatifler' ||
+    text.includes('daha ucuz') ||
+    text.includes('ucuz alternatif')
+  );
+}
+
 
 async function generateChatReply({ userMessage, previousMessages = [] }) {
   const recentProducts = extractRecentProducts(previousMessages);
@@ -961,6 +1040,14 @@ async function generateChatReply({ userMessage, previousMessages = [] }) {
   const referencedProduct = resolveProductReference(userMessage, recentProducts);
   const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
+  const latestBatchProducts = extractLatestAssistantProductBatch(previousMessages);
+const sameCategoryLatestBatch = filterProductsToSameCategory(
+  latestBatchProducts.length > 0 ? latestBatchProducts : comparisonProducts,
+  userMessage
+);
+const isSimilarAction = isSimilarRequest(userMessage);
+const isBestChoiceAction = isBestChoiceRequest(userMessage);
+const isCheaperAction = isCheaperRequest(userMessage);
 
   const planner = await generatePlanner({
     userMessage,
@@ -999,6 +1086,152 @@ if (!isShoppingRelated) {
     actions: [],
     comparison: null,
   };
+}
+
+if (isComparisonRequest && sameCategoryLatestBatch.length >= 2) {
+  const compareAnswer = await generateAnswer({
+    userMessage: `Bu ürünleri kısa ve net şekilde karşılaştır: ${sameCategoryLatestBatch
+      .map((p) => p.name)
+      .join(', ')}`,
+    previousMessages,
+    planner: {
+      intent: 'comparison',
+      needs_product_search: false,
+      search_query: '',
+      uses_recent_products: true,
+    },
+    searchedProducts: sameCategoryLatestBatch,
+  });
+
+  return {
+    assistantText: compareAnswer.assistant_text || 'Senin için seçenekleri karşılaştırdım.',
+    products: [],
+    actions: [],
+    comparison: buildComparisonData(compareAnswer, sameCategoryLatestBatch, 'karşılaştır'),
+  };
+}
+
+if (isBestChoiceAction && sameCategoryLatestBatch.length >= 2) {
+  const bestAnswer = await generateAnswer({
+    userMessage: `Bu ürünler arasından en iyi seçimi yap ve nedenini kısa açıkla: ${sameCategoryLatestBatch
+      .map((p) => p.name)
+      .join(', ')}`,
+    previousMessages,
+    planner: {
+      intent: 'best_choice',
+      needs_product_search: false,
+      search_query: '',
+      uses_recent_products: true,
+    },
+    searchedProducts: sameCategoryLatestBatch,
+  });
+
+  return {
+    assistantText:
+      bestAnswer.assistant_text || 'Senin için en mantıklı seçimi belirledim.',
+    products: [],
+    actions: [],
+    comparison: buildComparisonData(bestAnswer, sameCategoryLatestBatch, 'karşılaştır'),
+  };
+}
+
+if (isSimilarAction) {
+  const baseProduct =
+    referencedProduct ||
+    sameCategoryLatestBatch[0] ||
+    latestBatchProducts[0] ||
+    recentProducts[0] ||
+    null;
+
+  if (baseProduct) {
+    const similarResults = await searchWithFallback(baseProduct.name || userMessage, baseProduct.name || userMessage);
+    const cleanedSimilar = scoreAndRankProducts(
+      removeWeakProducts(similarResults, baseProduct.name || userMessage, baseProduct.name || userMessage),
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    ).slice(0, 8);
+
+    const similarAnswer = await generateAnswer({
+      userMessage: `Bu ürüne benzer alternatifler göster: ${baseProduct.name}`,
+      previousMessages,
+      planner: {
+        intent: 'refinement',
+        needs_product_search: true,
+        search_query: baseProduct.name || '',
+        uses_recent_products: true,
+      },
+      searchedProducts: cleanedSimilar,
+    });
+
+    return {
+      assistantText:
+        similarAnswer.assistant_text ||
+        `"${baseProduct.name}" ürününe benzer seçenekleri getirdim.`,
+      products:
+        Array.isArray(similarAnswer.products) && similarAnswer.products.length > 0
+          ? normalizeProducts(similarAnswer.products)
+          : normalizeProducts(cleanedSimilar),
+      actions: buildFallbackActions(
+        Array.isArray(similarAnswer.products) && similarAnswer.products.length > 0
+          ? normalizeProducts(similarAnswer.products)
+          : normalizeProducts(cleanedSimilar),
+        planner,
+        userMessage
+      ),
+      comparison: null,
+    };
+  }
+}
+
+if (isCheaperAction) {
+  const baseProduct =
+    referencedProduct ||
+    sameCategoryLatestBatch[0] ||
+    latestBatchProducts[0] ||
+    recentProducts[0] ||
+    null;
+
+  if (baseProduct) {
+    const basePrice = parsePriceValue(baseProduct.price);
+    const cheaperResults = await searchWithFallback(baseProduct.name || userMessage, baseProduct.name || userMessage);
+
+    const cleanedCheaper = scoreAndRankProducts(
+      removeWeakProducts(cheaperResults, baseProduct.name || userMessage, baseProduct.name || userMessage)
+        .filter((p) => parsePriceValue(p.price) < basePrice),
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    ).slice(0, 8);
+
+    const cheaperAnswer = await generateAnswer({
+      userMessage: `Bu ürüne göre daha ucuz alternatifler göster: ${baseProduct.name}`,
+      previousMessages,
+      planner: {
+        intent: 'refinement',
+        needs_product_search: true,
+        search_query: baseProduct.name || '',
+        uses_recent_products: true,
+      },
+      searchedProducts: cleanedCheaper,
+    });
+
+    return {
+      assistantText:
+        cheaperAnswer.assistant_text ||
+        `"${baseProduct.name}" ürününe göre daha uygun fiyatlı alternatifler buldum.`,
+      products:
+        Array.isArray(cheaperAnswer.products) && cheaperAnswer.products.length > 0
+          ? normalizeProducts(cheaperAnswer.products)
+          : normalizeProducts(cleanedCheaper),
+      actions: buildFallbackActions(
+        Array.isArray(cheaperAnswer.products) && cheaperAnswer.products.length > 0
+          ? normalizeProducts(cheaperAnswer.products)
+          : normalizeProducts(cleanedCheaper),
+        planner,
+        userMessage
+      ),
+      comparison: null,
+    };
+  }
 }
   let searchedProducts = [];
 
