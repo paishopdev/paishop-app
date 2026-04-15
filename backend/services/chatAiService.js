@@ -884,6 +884,38 @@ return parsed || {
 };
 }
 
+function normalizeActions(actions) {
+  if (!actions) return [];
+
+  if (Array.isArray(actions)) {
+    return actions
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof actions === 'string') {
+    const text = actions.trim();
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => String(item).trim())
+          .filter((item) => item.length > 0);
+      }
+    } catch (_) {}
+
+    return text
+      .replace(/^\[/, '')
+      .replace(/\]$/, '')
+      .split(',')
+      .map((item) => item.replace(/['"]/g, '').trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+}
+
 function buildSmallTalkReply(userMessage = '') {
   const text = String(userMessage).toLowerCase().trim();
 
