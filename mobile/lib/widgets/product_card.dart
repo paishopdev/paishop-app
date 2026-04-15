@@ -18,17 +18,29 @@ class ProductCard extends StatelessWidget {
   final bool isFavorite;
 
   Future<void> _openLink(BuildContext context) async {
-    if (product.link.isEmpty) return;
+  if (product.link.isEmpty) return;
 
-    final uri = Uri.parse(product.link);
+  String url = product.link.trim();
 
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(
-        uri,
-        webOnlyWindowName: '_blank',
-      );
-    }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://$url';
   }
+
+  final uri = Uri.parse(url);
+
+  try {
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Ürün linki açılamadı"),
+      ),
+    );
+  }
+}
 
   
 

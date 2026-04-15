@@ -368,6 +368,9 @@ final products = productsJson
 debugPrint("FULL RESULT: $result");
 debugPrint("COMPARISON FROM BACKEND: ${result["comparison"]}");
 
+final previousMaxScroll =
+    scrollController.hasClients ? scrollController.position.maxScrollExtent : 0.0;
+
 setState(() {
   messages.add(
     ChatMessage(
@@ -380,7 +383,22 @@ setState(() {
   );
 });
 
-scrollToBottom();
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (!scrollController.hasClients) return;
+
+  final hasRichContent =
+      products.isNotEmpty || comparison != null || actions.isNotEmpty;
+
+  if (hasRichContent) {
+    scrollController.animateTo(
+      previousMaxScroll,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  } else {
+    scrollToBottom();
+  }
+});
 
 Future<void> sendQuickAction(String action) async {
   controller.text = action;
@@ -590,42 +608,73 @@ Future<void> sendQuickAction(String action) async {
 }
 
 Widget buildComparisonBox(Map<String, dynamic> comparison) {
-  final summary = (comparison["summary"] ?? "").toString();
   final winner = (comparison["winner"] ?? "").toString();
-  final highlights = comparison["highlights"] as List? ?? [];
-  final products = comparison["products"] as List? ?? [];
+  final highlights = (comparison["highlights"] as List? ?? [])
+      .map((e) => e.toString())
+      .where((e) => e.trim().isNotEmpty)
+      .take(3)
+      .toList();
 
-  Widget buildMiniProductCard(Map<String, dynamic> map, bool isWinner) {
+  final products = (comparison["products"] as List? ?? [])
+      .map((e) => Map<String, dynamic>.from(e))
+      .toList();
+
+  Widget buildHighlightChip(String text) {
     return Container(
-      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: primaryColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle_rounded, size: 15, color: primaryColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildCompareCard(Map<String, dynamic> item, bool isWinnerCard) {
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isWinner ? primaryColor.withOpacity(0.08) : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
+        color: isWinnerCard ? primaryColor.withOpacity(0.08) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isWinner
-              ? primaryColor.withOpacity(0.20)
+          color: isWinnerCard
+              ? primaryColor.withOpacity(0.22)
               : Colors.grey.shade200,
         ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: isWinner
+              color: isWinnerCard
                   ? primaryColor.withOpacity(0.14)
-                  : Colors.white,
+                  : Colors.grey.shade100,
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isWinner
+              isWinnerCard
                   ? Icons.workspace_premium_rounded
                   : Icons.shopping_bag_outlined,
-              color: isWinner ? primaryColor : Colors.grey.shade700,
+              color: isWinnerCard ? primaryColor : Colors.grey.shade700,
               size: 20,
             ),
           ),
@@ -635,52 +684,43 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  map["name"] ?? "",
+                  item["name"] ?? "",
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
                     fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        map["price"] ?? "",
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    if ((map["platform"] ?? "").toString().isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Text(
-                          map["platform"] ?? "",
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade700,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                  ],
+                Text(
+                  item["price"] ?? "",
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
           ),
+          if ((item["platform"] ?? "").toString().isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                item["platform"] ?? "",
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -748,50 +788,16 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
             ),
           ),
         ],
-        if (summary.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(
-            summary,
-            style: TextStyle(
-              color: Colors.grey.shade800,
-              fontSize: 14,
-              height: 1.45,
-            ),
-          ),
-        ],
         if (highlights.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          const Text(
-            "Öne çıkanlar",
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: highlights.map(buildHighlightChip).toList(),
           ),
-          const SizedBox(height: 8),
-          ...highlights.take(3).map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.check_circle_rounded,
-                      size: 16,
-                      color: primaryColor,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        item.toString(),
-                        style: const TextStyle(height: 1.4),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
         ],
         if (products.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           const Text(
             "Karşılaştırılan ürünler",
             style: TextStyle(
@@ -801,9 +807,8 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
           ),
           const SizedBox(height: 10),
           ...products.map((item) {
-            final map = Map<String, dynamic>.from(item);
-            final isWinnerCard = (map["name"] ?? "") == winner;
-            return buildMiniProductCard(map, isWinnerCard);
+            final isWinnerCard = (item["name"] ?? "") == winner;
+            return buildCompareCard(item, isWinnerCard);
           }),
         ],
       ],
