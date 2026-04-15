@@ -203,7 +203,7 @@ Widget buildDrawerAvatar() {
       messages = [
         ChatMessage(
           text:
-              "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben senin AI alışveriş asistanınım. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
+              "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben Shopi. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
           isUser: false,
         ),
       ];
@@ -258,7 +258,7 @@ Widget buildDrawerAvatar() {
           messages = [
             ChatMessage(
               text:
-                  "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben senin AI alışveriş asistanınım. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
+                  "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben Shopi. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
               isUser: false,
             ),
           ];
@@ -308,7 +308,7 @@ return ChatMessage(
             ? [
                 ChatMessage(
                   text:
-                      "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben senin AI alışveriş asistanınım. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
+                      "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben Shopi. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
                   isUser: false,
                 ),
               ]
@@ -415,7 +415,7 @@ Future<void> sendQuickAction(String action) async {
       messages = [
         ChatMessage(
           text:
-              "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben senin AI alışveriş asistanınım. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
+              "Merhaba${firstName.isNotEmpty ? ' $firstName' : ''}! Ben Shopi. İstediğin ürünü yaz, sana uygun seçenekleri bulayım.",
           isUser: false,
         ),
       ];
@@ -550,7 +550,7 @@ Future<void> sendQuickAction(String action) async {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    "AI Assistant",
+                    "Shopi",
                     style: TextStyle(
                       color: Colors.grey.shade700,
                       fontSize: 12,
@@ -590,17 +590,108 @@ Future<void> sendQuickAction(String action) async {
 }
 
 Widget buildComparisonBox(Map<String, dynamic> comparison) {
-  final summary = comparison["summary"] ?? "";
-  final winner = comparison["winner"] ?? "";
+  final summary = (comparison["summary"] ?? "").toString();
+  final winner = (comparison["winner"] ?? "").toString();
   final highlights = comparison["highlights"] as List? ?? [];
   final products = comparison["products"] as List? ?? [];
+
+  Widget buildMiniProductCard(Map<String, dynamic> map, bool isWinner) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isWinner ? primaryColor.withOpacity(0.08) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isWinner
+              ? primaryColor.withOpacity(0.20)
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: isWinner
+                  ? primaryColor.withOpacity(0.14)
+                  : Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isWinner
+                  ? Icons.workspace_premium_rounded
+                  : Icons.shopping_bag_outlined,
+              color: isWinner ? primaryColor : Colors.grey.shade700,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  map["name"] ?? "",
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        map["price"] ?? "",
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if ((map["platform"] ?? "").toString().isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Text(
+                          map["platform"] ?? "",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       border: Border.all(color: Colors.grey.shade200),
       boxShadow: [
         BoxShadow(
@@ -618,42 +709,38 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
             Icon(Icons.balance_rounded, color: primaryColor, size: 18),
             const SizedBox(width: 8),
             const Text(
-              "Karşılaştırma Özeti",
+              "Shopi Karşılaştırdı",
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ],
         ),
-        if (summary.toString().isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Text(
-            summary,
-            style: const TextStyle(
-              fontSize: 14,
-              height: 1.4,
-            ),
-          ),
-        ],
-        if (winner.toString().isNotEmpty) ...[
+        if (winner.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: primaryColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               children: [
-                Icon(Icons.workspace_premium_rounded, color: primaryColor, size: 18),
-                const SizedBox(width: 8),
+                Icon(
+                  Icons.workspace_premium_rounded,
+                  color: primaryColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    "Önerilen seçim: $winner",
+                    "En iyi seçim: $winner",
                     style: TextStyle(
                       color: primaryColor,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -661,16 +748,44 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
             ),
           ),
         ],
-        if (highlights.isNotEmpty) ...[
+        if (summary.isNotEmpty) ...[
           const SizedBox(height: 12),
-          ...highlights.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
+          Text(
+            summary,
+            style: TextStyle(
+              color: Colors.grey.shade800,
+              fontSize: 14,
+              height: 1.45,
+            ),
+          ),
+        ],
+        if (highlights.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Text(
+            "Öne çıkanlar",
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...highlights.take(3).map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.check_circle_rounded, size: 16, color: primaryColor),
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 16,
+                      color: primaryColor,
+                    ),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(item.toString())),
+                    Expanded(
+                      child: Text(
+                        item.toString(),
+                        style: const TextStyle(height: 1.4),
+                      ),
+                    ),
                   ],
                 ),
               )),
@@ -679,37 +794,16 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
           const SizedBox(height: 12),
           const Text(
             "Karşılaştırılan ürünler",
-            style: TextStyle(fontWeight: FontWeight.w700),
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ...products.map((item) {
             final map = Map<String, dynamic>.from(item);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      map["name"] ?? "",
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    map["price"] ?? "",
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            );
+            final isWinnerCard = (map["name"] ?? "") == winner;
+            return buildMiniProductCard(map, isWinnerCard);
           }),
         ],
       ],
@@ -1103,7 +1197,7 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        currentChatTitle.isEmpty ? "AI Shopping Assistant" : currentChatTitle,
+        currentChatTitle.isEmpty ? "Shopi • Sohbet" : currentChatTitle,
         style: const TextStyle(
           color: Colors.black87,
           fontSize: 17,
@@ -1112,7 +1206,7 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
       ),
       const SizedBox(height: 2),
       Text(
-        "Akıllı alışveriş asistanın",
+        "Alışveriş yardımcın Shopi",
         style: TextStyle(
           color: Colors.grey.shade600,
           fontSize: 12,

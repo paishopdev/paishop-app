@@ -687,7 +687,7 @@ async function generatePlanner({ userMessage, previousMessages = [] }) {
   const recentProducts = extractRecentProducts(previousMessages);
 
   const plannerPrompt = `
-Sen gelişmiş bir AI alışveriş asistanısın.
+Sen shopi'sin gelişmiş bir alışveriş asistanısın.
 
 Görevin kullanıcının son mesajını sınıflandırmak.
 
@@ -801,7 +801,7 @@ async function generateAnswer({
   const normalizedSearchedProducts = normalizeProducts(searchedProducts);
 
   const answerPrompt = `
-Sen konuşkan, doğal, yardımcı ve akıllı bir AI alışveriş asistanısın.
+Sen Shopi’sin. Kullanıcılara ürün bulma, karşılaştırma ve alışveriş kararlarında yardımcı olan akıllı ve samimi bir asistansın.
 Türkçe cevap ver.
 Samimi ama profesyonel ol.
 Kullanıcıyla ChatGPT gibi doğal konuş.
@@ -895,7 +895,7 @@ function buildSmallTalkReply(userMessage = '') {
     text === 'hi' ||
     text === 'hello'
   ) {
-    return 'Merhaba 👋 Ben PaiShop. İstersen sana ürün önerileri, karşılaştırma ya da bütçene uygun seçenekler konusunda yardımcı olayım.';
+    return 'Merhaba 👋 Ben Shopi. İstersen sana ürün önerileri, karşılaştırma ya da bütçene uygun seçenekler konusunda yardımcı olayım.';
   }
 
   if (
@@ -903,7 +903,7 @@ function buildSmallTalkReply(userMessage = '') {
     text.includes('nasilsin') ||
     text.includes('iyi misin')
   ) {
-    return 'İyiyim, teşekkür ederim 😊 Senin için güzel ürünler bulmaya hazırım. Ne arıyorsun?';
+    return 'İyiyim, teşekkür ederim 😊 Ben Shopi, sana uygun ürünleri bulmaya hazırım.';
   }
 
   if (
@@ -938,8 +938,46 @@ function buildSmallTalkReply(userMessage = '') {
   return null;
 }
 
+function extractRecentProductsForComparison(previousMessages = [], limit = 6) {
+  const collected = [];
+
+  for (let i = previousMessages.length - 1; i >= 0; i--) {
+    const msg = previousMessages[i];
+
+    if (
+      msg &&
+      msg.role === 'assistant' &&
+      Array.isArray(msg.products) &&
+      msg.products.length > 0
+    ) {
+      for (const product of msg.products) {
+        if (!product || !product.name) continue;
+        collected.push(product);
+      }
+    }
+
+    if (collected.length >= limit * 2) break;
+  }
+
+  const seen = new Set();
+  const unique = [];
+
+  for (const product of collected) {
+    const key =
+      product.link ||
+      `${product.name}-${product.price || ''}-${product.platform || ''}`;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(product);
+  }
+
+  return unique.slice(0, limit);
+}
+
 async function generateChatReply({ userMessage, previousMessages = [] }) {
   const recentProducts = extractRecentProducts(previousMessages);
+  const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
   const referencedProduct = resolveProductReference(userMessage, recentProducts);
   const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
@@ -1135,6 +1173,15 @@ if (!isShoppingRelated && planner.intent === 'general_question') {
     searchedProducts,
   });
 
+  if (isComparisonRequest && comparisonProducts.length >= 2) {
+    return {
+      assistantText: answer.assistant_text || 'Senin için seçenekleri karşılaştırdım.',
+      products: [],
+      actions: normalizeActions(answer.actions),
+      comparison: buildComparisonData(answer, comparisonProducts, userMessage),
+    };
+  }
+
   const finalProducts =
   Array.isArray(answer.products) && answer.products.length > 0
     ? normalizeProducts(answer.products)
@@ -1171,9 +1218,14 @@ if ((!finalProducts || finalProducts.length === 0) && planner.needs_product_sear
   }
 }
 
+const compareSourceProducts =
+  isComparisonRequest && comparisonProducts.length >= 2
+    ? comparisonProducts
+    : finalProducts;
+
 const comparison = buildComparisonData(
   answer,
-  finalProducts,
+  compareSourceProducts,
   userMessage
 );
 
