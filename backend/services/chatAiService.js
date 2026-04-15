@@ -486,13 +486,12 @@ function normalizeProducts(products) {
 }
 
 function buildFallbackActions(products = [], planner = {}, userMessage = '') {
-  const actions = [];
-
   if (!products || products.length === 0) {
-    return actions;
+    return [];
   }
 
   const sameCategoryProducts = filterProductsToSameCategory(products, userMessage);
+  const actions = [];
 
   if (sameCategoryProducts.length >= 2) {
     actions.push('Karşılaştır');
@@ -875,6 +874,120 @@ return parsed || {
 };
 }
 
+function normalizeActionLabel(text = '') {
+  return normalizeText(String(text).trim());
+}
+
+function detectActionCommand(userMessage = '') {
+  const text = normalizeActionLabel(userMessage);
+
+  if (text === 'karsilastir') return 'compare';
+  if (text === 'en iyisini sec') return 'pick_best';
+  if (text === 'benzer urunler') return 'find_similar';
+  if (text === 'daha ucuz alternatifler') return 'find_cheaper';
+
+  return null;
+}
+
+function extractLastProductBatch(previousMessages = []) {
+  for (let i = previousMessages.length - 1; i >= 0; i--) {
+    const msg = previousMessages[i];
+
+    if (
+      msg &&
+      msg.role === 'assistant' &&
+      Array.isArray(msg.products) &&
+      msg.products.length > 0
+    ) {
+      return normalizeProducts(msg.products);
+    }
+  }
+
+  return [];
+}
+
+function scoreProductForWinner(product) {
+  let score = 0;
+
+  const price = parsePriceValue(product.price);
+  if (price !== Number.MAX_SAFE_INTEGER) score += 2;
+  if (product.rating) score += product.rating * 2;
+  if (product.reviews) {
+    const reviewsBoost = Math.min(product.reviews / 1000, 5);
+    score += reviewsBoost;
+  }
+  if (product.short_reason) score += 1;
+  if (product.link) score += 1;
+  if (product.image) score += 1;
+
+  return score;
+}
+
+function selectWinnerProduct(products = []) {
+  if (!products.length) return null;
+
+  const scored = [...products].map((p) => ({
+    ...p,
+    _winnerScore: scoreProductForWinner(p),
+  }));
+
+  scored.sort((a, b) => b._winnerScore - a._winnerScore);
+
+  const { _winnerScore, ...winner } = scored[0];
+  return winner;
+}
+
+function buildDeterministicComparison(products = []) {
+  if (!products || products.length < 2) return null;
+
+  const normalized = normalizeProducts(products).slice(0, 4);
+  const winner = selectWinnerProduct(normalized);
+
+  if (!winner) return null;
+
+  const highlights = [];
+
+  if (winner.rating) {
+    highlights.push(`${winner.name} puan tarafında öne çıkıyor.`);
+  }
+
+  if (winner.reviews) {
+    highlights.push(`${winner.name} yorum sayısı ile daha güven veriyor.`);
+  }
+
+  const validPriceProducts = normalized.filter(
+    (p) => parsePriceValue(p.price) !== Number.MAX_SAFE_INTEGER
+  );
+
+  if (validPriceProducts.length >= 2) {
+    const cheapest = [...validPriceProducts].sort(
+      (a, b) => parsePriceValue(a.price) - parsePriceValue(b.price)
+    )[0];
+
+    if (cheapest && cheapest.name !== winner.name) {
+      highlights.push(`${cheapest.name} fiyat tarafında daha avantajlı görünüyor.`);
+    }
+  }
+
+  if (highlights.length === 0) {
+    highlights.push(`${winner.name} genel denge açısından daha mantıklı görünüyor.`);
+  }
+
+  return {
+    summary: `${winner.name} genel denge açısından en güçlü seçenek gibi duruyor.`,
+    winner: winner.name || '',
+    highlights: highlights.slice(0, 3),
+    products: normalized.map((p) => ({
+      name: p.name || '',
+      price: p.price || '',
+      platform: p.platform || '',
+      image: p.image || '',
+      link: p.link || '',
+      short_reason: p.short_reason || '',
+    })),
+  };
+}
+
 function normalizeActions(actions) {
   if (!actions) return [];
 
@@ -1040,14 +1153,152 @@ async function generateChatReply({ userMessage, previousMessages = [] }) {
   const referencedProduct = resolveProductReference(userMessage, recentProducts);
   const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
-  const latestBatchProducts = extractLatestAssistantProductBatch(previousMessages);
-const sameCategoryLatestBatch = filterProductsToSameCategory(
-  latestBatchProducts.length > 0 ? latestBatchProducts : comparisonProducts,
-  userMessage
-);
+ 
+  const actionCommand = detectActionCommand(userMessage);
+  const latestBatchProducts = extractLastProductBatch(previousMessages);
+  const stableBatchProducts = filterProductsToSameCategory(
+    latestBatchProducts.length > 0 ? latestBatchProducts : comparisonProducts,
+    userMessage
+  );
 const isSimilarAction = isSimilarRequest(userMessage);
 const isBestChoiceAction = isBestChoiceRequest(userMessage);
 const isCheaperAction = isCheaperRequest(userMessage);
+
+if (actionCommand === 'compare') {
+  const compareProducts =
+    stableBatchProducts.length >= 2 ? stableBatchProducts : comparisonProducts;
+
+  const deterministicComparison = buildDeterministicComparison(compareProducts);
+
+  if (deterministicComparison) {
+    return {
+      assistantText: `${deterministicComparison.winner} öne çıkıyor. Senin için seçenekleri net şekilde karşılaştırdım.`,
+      products: [],
+      actions: [],
+      comparison: deterministicComparison,
+    };
+  }
+
+  return {
+    assistantText: 'Karşılaştırma yapabilmem için önce aynı kategoride en az 2 ürün göstermem gerekiyor.',
+    products: [],
+    actions: [],
+    comparison: null,
+  };
+}
+
+if (actionCommand === 'pick_best') {
+  const bestProducts =
+    stableBatchProducts.length >= 1 ? stableBatchProducts : comparisonProducts;
+
+  const winner = selectWinnerProduct(bestProducts);
+
+  if (winner) {
+    return {
+      assistantText: `Bence en mantıklı seçim ${winner.name}. Fiyat, içerik ve genel denge açısından daha güçlü görünüyor.`,
+      products: [],
+      actions: [],
+      comparison: buildDeterministicComparison(bestProducts),
+    };
+  }
+
+  return {
+    assistantText: 'En iyi seçimi yapabilmem için önce birkaç ürün göstermem gerekiyor.',
+    products: [],
+    actions: [],
+    comparison: null,
+  };
+}
+
+if (actionCommand === 'find_similar') {
+  const baseProduct =
+    referencedProduct ||
+    stableBatchProducts[0] ||
+    latestBatchProducts[0] ||
+    recentProducts[0] ||
+    null;
+
+  if (baseProduct) {
+    const similarResults = await searchWithFallback(
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    );
+
+    let cleanedSimilar = removeWeakProducts(
+      similarResults,
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    );
+
+    cleanedSimilar = scoreAndRankProducts(
+      cleanedSimilar,
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    ).slice(0, 8);
+
+    const normalizedSimilar = normalizeProducts(cleanedSimilar);
+
+    return {
+      assistantText: `"${baseProduct.name}" için benzer seçenekleri buldum.`,
+      products: normalizedSimilar,
+      actions: buildFallbackActions(normalizedSimilar, {}, baseProduct.name || userMessage),
+      comparison: null,
+    };
+  }
+
+  return {
+    assistantText: 'Benzer ürünler bulabilmem için önce bir ürün seçmem gerekiyor.',
+    products: [],
+    actions: [],
+    comparison: null,
+  };
+}
+
+if (actionCommand === 'find_cheaper') {
+  const baseProduct =
+    referencedProduct ||
+    stableBatchProducts[0] ||
+    latestBatchProducts[0] ||
+    recentProducts[0] ||
+    null;
+
+  if (baseProduct) {
+    const basePrice = parsePriceValue(baseProduct.price);
+
+    const cheaperResults = await searchWithFallback(
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    );
+
+    let cleanedCheaper = removeWeakProducts(
+      cheaperResults,
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    ).filter((p) => parsePriceValue(p.price) < basePrice);
+
+    cleanedCheaper = scoreAndRankProducts(
+      cleanedCheaper,
+      baseProduct.name || userMessage,
+      baseProduct.name || userMessage
+    ).slice(0, 8);
+
+    const normalizedCheaper = normalizeProducts(cleanedCheaper);
+
+    return {
+      assistantText: `"${baseProduct.name}" için daha uygun fiyatlı alternatifleri buldum.`,
+      products: normalizedCheaper,
+      actions: buildFallbackActions(normalizedCheaper, {}, baseProduct.name || userMessage),
+      comparison: null,
+    };
+  }
+
+  return {
+    assistantText: 'Daha ucuz alternatif gösterebilmem için önce bir ürün seçmem gerekiyor.',
+    products: [],
+    actions: [],
+    comparison: null,
+  };
+}
 
   const planner = await generatePlanner({
     userMessage,
