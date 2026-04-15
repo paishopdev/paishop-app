@@ -884,6 +884,60 @@ return parsed || {
 };
 }
 
+function buildSmallTalkReply(userMessage = '') {
+  const text = String(userMessage).toLowerCase().trim();
+
+  if (
+    text === 'merhaba' ||
+    text === 'selam' ||
+    text === 'selamlar' ||
+    text === 'hey' ||
+    text === 'hi' ||
+    text === 'hello'
+  ) {
+    return 'Merhaba 👋 Ben PaiShop. İstersen sana ürün önerileri, karşılaştırma ya da bütçene uygun seçenekler konusunda yardımcı olayım.';
+  }
+
+  if (
+    text.includes('nasılsın') ||
+    text.includes('nasilsin') ||
+    text.includes('iyi misin')
+  ) {
+    return 'İyiyim, teşekkür ederim 😊 Senin için güzel ürünler bulmaya hazırım. Ne arıyorsun?';
+  }
+
+  if (
+    text.includes('napıyorsun') ||
+    text.includes('napiyorsun') ||
+    text.includes('ne yapıyorsun')
+  ) {
+    return 'Buradayım, sana en uygun ürünleri bulmak ve karşılaştırmak için hazırım 😄';
+  }
+
+  if (
+    text.includes('teşekkürler') ||
+    text.includes('tesekkurler') ||
+    text.includes('teşekkür ederim') ||
+    text.includes('tesekkur ederim') ||
+    text.includes('sağ ol') ||
+    text.includes('sag ol')
+  ) {
+    return 'Rica ederim 😊 İstersen başka bir ürün için de yardımcı olayım.';
+  }
+
+  if (
+    text.includes('görüşürüz') ||
+    text.includes('gorusuruz') ||
+    text.includes('hoşçakal') ||
+    text.includes('hoscakal') ||
+    text.includes('bye')
+  ) {
+    return 'Görüşürüz 👋 İhtiyacın olursa yine buradayım.';
+  }
+
+  return null;
+}
+
 async function generateChatReply({ userMessage, previousMessages = [] }) {
   const recentProducts = extractRecentProducts(previousMessages);
   const referencedProduct = resolveProductReference(userMessage, recentProducts);
@@ -895,21 +949,32 @@ async function generateChatReply({ userMessage, previousMessages = [] }) {
     previousMessages,
   });
 
-  const text = String(userMessage).toLowerCase();
+  const text = String(userMessage).toLowerCase().trim();
 
 const shoppingKeywords = [
   'ürün', 'öner', 'oner', 'fiyat', 'bütçe', 'butce', 'karşılaştır', 'karsilastir',
   'telefon', 'kulaklık', 'kulaklik', 'mouse', 'tablet', 'bilgisayar', 'laptop',
   'şarj', 'sarj', 'kamera', 'krem', 'makyaj', 'ayakkabı', 'ayakkabi', 'elbise',
-  'hediye', 'marka', 'ucuz', 'pahalı', 'pahali', 'benzer', 'alternatif'
+  'hediye', 'marka', 'ucuz', 'pahalı', 'pahali', 'benzer', 'alternatif',
+  'çanta', 'canta', 'saat', 'parfüm', 'parfum', 'kulak içi', 'oyuncu', 'gaming'
 ];
 
 const isShoppingRelated = shoppingKeywords.some((keyword) => text.includes(keyword));
+const smallTalkReply = buildSmallTalkReply(userMessage);
 
 if (!isShoppingRelated && planner.intent === 'general_question') {
+  if (smallTalkReply) {
+    return {
+      assistantText: smallTalkReply,
+      products: [],
+      actions: [],
+      comparison: null,
+    };
+  }
+
   return {
     assistantText:
-      'Ben alışveriş, ürün önerisi ve karşılaştırma konusunda yardımcı olmak için tasarlandım. İstersen bir ürün, kategori, bütçe veya özellik söyle; sana uygun seçenekler bulayım.',
+      'Ben daha çok alışveriş, ürün önerisi ve karşılaştırma konusunda yardımcı oluyorum. İstersen bir ürün, kategori, bütçe veya özellik söyle; sana uygun seçenekler bulayım.',
     products: [],
     actions: [],
     comparison: null,

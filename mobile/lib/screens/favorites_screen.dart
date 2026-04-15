@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/favorite_service.dart';
 import '../widgets/product_card.dart';
 import '../utils/responsive.dart';
+import '../utils/app_notice.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -61,14 +62,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Favorilerden çıkarıldı")),
-      );
+      showAppNotice(
+  context,
+  message: "Favorilerden çıkarıldı",
+);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Favori silinemedi")),
-      );
+      showAppNotice(
+  context,
+  message: "Favori silinemedi",
+  isError: true,
+);
     }
   }
 

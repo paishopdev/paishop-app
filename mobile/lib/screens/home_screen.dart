@@ -8,6 +8,10 @@ import '../widgets/typing_indicator.dart';
 import '../services/favorite_service.dart';
 import '../models/favorite_item.dart';
 import '../utils/responsive.dart';
+import '../utils/app_notice.dart';
+import 'dart:io';
+import 'account_screen.dart';
+import '../services/profile_service.dart';
 
 
 class ChatMessage {
@@ -45,6 +49,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String currentChatTitle = 'Yeni Sohbet';
   String userId = '';
   String firstName = '';
+  String displayName = '';
+String? avatarPath;
 
   Set<String> favoriteLinks = {};
 
@@ -105,9 +111,11 @@ final Color userBubbleColor = const Color(0xFF6C63FF);
       
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Favorilerden çıkarıldı")),
-      );
+      showAppNotice(
+  context,
+  message: "Favorilerden çıkarıldı",
+  isError: true,
+);
     } 
     else {
       await FavoriteService.addFavorite(
@@ -121,24 +129,70 @@ final Color userBubbleColor = const Color(0xFF6C63FF);
       
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Favorilere eklendi")),
-      );
+      showAppNotice(
+  context,
+  message: "Favorilere eklendi",
+);
     }
   } catch (e) {
     debugPrint(e.toString());
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Favori işlemi başarısız")),
-    );
+    showAppNotice(
+  context,
+  message: "Favori eklenemedi",
+  isError: true,
+);
   }
 }
+
+
 
   @override
   void initState() {
     super.initState();
     initUserAndChats();
+    
   }
+
+  Future<void> loadProfileCard() async {
+  final name = await ProfileService.getDisplayName(
+    fallbackFirstName: firstName,
+  );
+  final avatar = await ProfileService.getAvatarPath();
+
+  setState(() {
+    displayName = name;
+    avatarPath = avatar;
+  });
+}
+
+Widget buildDrawerAvatar() {
+  final effectiveName = (displayName.isNotEmpty ? displayName : firstName).trim();
+  final initial = effectiveName.isNotEmpty ? effectiveName[0].toUpperCase() : 'P';
+
+  if (avatarPath != null && avatarPath!.isNotEmpty) {
+    final file = File(avatarPath!);
+    if (file.existsSync()) {
+      return CircleAvatar(
+        radius: 26,
+        backgroundImage: FileImage(file),
+      );
+    }
+  }
+
+  return CircleAvatar(
+    radius: 26,
+    backgroundColor: primaryColor.withOpacity(0.10),
+    child: Text(
+      initial,
+      style: TextStyle(
+        color: primaryColor,
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
+}
 
   Future<void> initUserAndChats() async {
     final userData = await AuthService.getUserData();
@@ -155,6 +209,7 @@ final Color userBubbleColor = const Color(0xFF6C63FF);
       ];
     });
 
+    await loadProfileCard();
     await loadChatHistory();
     await loadFavorites();
   }
@@ -753,68 +808,68 @@ Widget buildDrawer() {
     child: SafeArea(
       child: Column(
         children: [
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.grey.shade200),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
+         GestureDetector(
+  onTap: () async {
+    Navigator.pop(context);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const AccountScreen(),
+      ),
+    );
+    await loadProfileCard();
+  },
+  child: Container(
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: Colors.grey.shade200),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        buildDrawerAvatar(),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                displayName.isNotEmpty ? displayName : firstName,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black87,
                 ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    color: primaryColor,
-                    size: 24,
-                  ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                firstName.isNotEmpty
+                    ? "Hoş geldin, $firstName"
+                    : "Hesap bilgilerini ve ayarlarını yönet",
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontSize: 13,
+                  height: 1.4,
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "AI Shopping Assistant",
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        firstName.isNotEmpty
-                            ? "Hoş geldin, $firstName"
-                            : "Sohbetlerini ve favorilerini buradan yönetebilirsin",
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+        const Icon(Icons.chevron_right_rounded),
+      ],
+    ),
+  ),
+),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Column(
@@ -1066,20 +1121,6 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
       ),
     ],
   ),
-  actions: [
-    IconButton(
-      onPressed: () async {
-        await AuthService.logout();
-        if (!context.mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/login',
-          (route) => false,
-        );
-      },
-      icon: const Icon(Icons.logout_rounded),
-    ),
-    const SizedBox(width: 6),
-  ],
 ),
       body: Column(
         children: [

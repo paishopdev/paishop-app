@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../utils/responsive.dart';
+import '../utils/app_notice.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -48,23 +49,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
         phone.isEmpty ||
         email.isEmpty ||
         password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lütfen tüm alanları doldurun")),
-      );
+      showAppNotice(
+  context,
+  message: "Lütfen tüm alanları doldurun",
+  isError: true,
+);
       return;
     }
 
     if (!isValidEmail(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Geçerli bir e-posta girin")),
-      );
+      showAppNotice(
+  context,
+  message: "Geçerli bir e-posta girin",
+  isError: true,
+);
       return;
     }
 
     if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Şifre en az 6 karakter olmalı")),
-      );
+      showAppNotice(
+  context,
+  message: "Şifre en az 6 karakter olmalı",
+  isError: true,
+);
       return;
     }
 
@@ -89,9 +96,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (result["token"] != null) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["error"] ?? "Kayıt başarısız")),
-      );
+     showAppNotice(
+  context,
+  message: result["error"] ?? "Kayıt başarısız",
+  isError: true,
+);
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'register_screen.dart';
 import '../utils/responsive.dart';
+import '../utils/app_notice.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,16 +37,20 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = passwordController.text.trim();
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Lütfen tüm alanları doldurun")),
-      );
+      showAppNotice(
+  context,
+  message: "Lütfen tüm alanları doldurun",
+  isError: true,
+);
       return;
     }
 
     if (!isValidEmail(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Geçerli bir e-posta girin")),
-      );
+      showAppNotice(
+  context,
+  message: "Geçerli bir e-posta girin",
+  isError: true,
+);
       return;
     }
 
@@ -67,9 +72,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (result["token"] != null) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result["error"] ?? "Giriş başarısız")),
-      );
+      showAppNotice(
+  context,
+  message: result["error"] ?? "Giriş başarısız",
+  isError: true,
+);
     }
   }
 
