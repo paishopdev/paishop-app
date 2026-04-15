@@ -1244,11 +1244,7 @@ function isSmallTalkMessage(userMessage = '') {
     .trim()
     .replace(/[^\w\sçğıöşü]/gi, '');
 
-    if (text.length <= 20 && !text.includes('ürün') && !text.includes('fiyat')) {
-      return true;
-    }
-
-  const smallTalkKeywords = [
+  const exactMatches = [
     'merhaba',
     'selam',
     'selamlar',
@@ -1274,9 +1270,8 @@ function isSmallTalkMessage(userMessage = '') {
     'bye'
   ];
 
-  return smallTalkKeywords.some(keyword => text.includes(keyword));
+  return exactMatches.includes(text);
 }
-
 async function generateSmallTalkReply(userMessage, previousMessages = []) {
   console.log('SMALL TALK DYNAMIC HIT:', userMessage);
 
