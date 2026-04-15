@@ -40,6 +40,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController controller = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  Product? selectedProductContext;
   final FocusNode inputFocusNode = FocusNode();
 
   List<ChatMessage> messages = [];
@@ -147,22 +148,15 @@ final Color userBubbleColor = const Color(0xFF6C63FF);
 }
 
 void askAboutProduct(Product product) {
-  final basePrompt =
-      '"${product.name}" ürünü hakkında soru sor. '
-      'Örneğin: yorumları nasıl, özellikleri neler, farklı satıcıları var mı?';
-
-  controller.text = basePrompt;
-  controller.selection = TextSelection.fromPosition(
-    TextPosition(offset: controller.text.length),
-  );
-
-  inputFocusNode.requestFocus();
+  setState(() {
+    selectedProductContext = product;
+  });
 }
 
 @override
 void dispose() {
   controller.dispose();
-  scrollController.dispose();
+  scrollController.dispose(); 
   inputFocusNode.dispose();
   super.dispose();
 }
@@ -345,122 +339,122 @@ return ChatMessage(
     }
   }
 
-  Future<void> search() async {
+Future<void> search() async {
   if (loading) return;
 
   final query = controller.text.trim();
   if (query.isEmpty) return;
 
-    setState(() {
-      messages.add(ChatMessage(text: query, isUser: true));
-      loading = true;
-    });
+  String finalUserText = query;
 
-    controller.clear();
-    scrollToBottom();
+  if (selectedProductContext != null) {
+    finalUserText =
+        'Seçili ürün: ${selectedProductContext!.name}\n'
+        'Fiyat: ${selectedProductContext!.price}\n'
+        'Mağaza: ${selectedProductContext!.platform}\n'
+        'Link: ${selectedProductContext!.link}\n'
+        'Kullanıcı sorusu: $query';
+  }
 
-    await createNewChatIfNeeded(query);
+  setState(() {
+    messages.add(ChatMessage(text: query, isUser: true));
+    loading = true;
+  });
 
-    try {
-      final result = await ChatService.sendMessage(
-        chatId: currentChatId,
-        message: query,
-      );
+  controller.clear();
+  scrollToBottom();
 
-      final assistantText =
-    (result["assistantText"] ?? "").toString().trim().isNotEmpty
-        ? result["assistantText"].toString()
-        : "Sana yardımcı olmaya çalışıyorum.";
+  await createNewChatIfNeeded(query);
 
-      final productsJson = result["products"] is List ? result["products"] as List : [];
-final products = productsJson
-    .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
-    .toList();
+  try {
+    final result = await ChatService.sendMessage(
+      chatId: currentChatId,
+      message: finalUserText,
+    );
 
-      final actions = result["actions"] is List
-    ? List<String>.from(result["actions"])
-    : <String>[];
+    final assistantText =
+        (result["assistantText"] ?? "").toString().trim().isNotEmpty
+            ? result["assistantText"].toString()
+            : "Sana yardımcı olmaya çalışıyorum.";
+
+    final productsJson =
+        result["products"] is List ? result["products"] as List : [];
+
+    final products = productsJson
+        .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
+
+    final actions = result["actions"] is List
+        ? List<String>.from(result["actions"])
+        : <String>[];
 
     final comparison = result["comparison"] != null
-    ? Map<String, dynamic>.from(result["comparison"])
-    : null;
+        ? Map<String, dynamic>.from(result["comparison"])
+        : null;
 
     debugPrint("ACTIONS FROM BACKEND: $actions");
-debugPrint("FULL RESULT: $result");
-debugPrint("COMPARISON FROM BACKEND: ${result["comparison"]}");
+    debugPrint("FULL RESULT: $result");
+    debugPrint("COMPARISON FROM BACKEND: ${result["comparison"]}");
 
-final previousMaxScroll =
-    scrollController.hasClients ? scrollController.position.maxScrollExtent : 0.0;
+    final previousMaxScroll = scrollController.hasClients
+        ? scrollController.position.maxScrollExtent
+        : 0.0;
 
-setState(() {
-  messages.add(
-    ChatMessage(
-      text: assistantText,
-      isUser: false,
-      products: products.cast<Product>(),
-      actions: actions,
-      comparison: comparison,
-    ),
-  );
-});
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: assistantText,
+          isUser: false,
+          products: products.cast<Product>(),
+          actions: actions,
+          comparison: comparison,
+        ),
+      );
 
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  if (!scrollController.hasClients) return;
+      selectedProductContext = null;
+    });
 
-  final hasRichContent =
-      products.isNotEmpty || comparison != null || actions.isNotEmpty;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!scrollController.hasClients) return;
 
-  if (hasRichContent) {
-    scrollController.animateTo(
-      previousMaxScroll,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-  } else {
-    scrollToBottom();
+      final hasRichContent =
+          products.isNotEmpty || comparison != null || actions.isNotEmpty;
+
+      if (hasRichContent) {
+        scrollController.animateTo(
+          previousMaxScroll,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        scrollToBottom();
+      }
+    });
+
+    await loadChatHistory();
+  } catch (e) {
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text:
+              "Şu an isteğini işlerken bir sorun oldu. İstersen tekrar deneyebilir ya da isteğini biraz daha kısa yazabilirsin.",
+          isUser: false,
+        ),
+      );
+    });
+
+    debugPrint(e.toString());
   }
-});
 
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  if (!scrollController.hasClients) return;
-
-  final hasRichContent =
-      products.isNotEmpty || comparison != null || actions.isNotEmpty;
-
-  if (hasRichContent) {
-    scrollController.animateTo(
-      previousMaxScroll,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-  } else {
-    scrollToBottom();
-  }
-});
+  setState(() {
+    loading = false;
+  });
+}
 
 Future<void> sendQuickAction(String action) async {
   controller.text = action;
   await search();
 }
-
-      await loadChatHistory();
-    } catch (e) {
-      setState(() {
-        messages.add(
-          ChatMessage(
-            text: "Şu an isteğini işlerken bir sorun oldu. İstersen tekrar deneyebilir ya da isteğini biraz daha kısa yazabilirsin.",
-            isUser: false,
-          ),
-        );
-      });
-
-      debugPrint(e.toString());
-    }
-
-    setState(() {
-      loading = false;
-    });
-  }
 
   void startNewChat() {
     setState(() {
@@ -1276,6 +1270,60 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
     ),
   ),
 ),
+if (selectedProductContext != null)
+  Container(
+    margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.grey.shade200),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 8,
+          offset: const Offset(0, 3),
+        ),
+      ],
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Seçili ürün",
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                selectedProductContext!.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: () {
+            setState(() {
+              selectedProductContext = null;
+            });
+          },
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ],
+    ),
+  ),
           SafeArea(
   top: false,
   child: Container(
@@ -1300,7 +1348,8 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
               borderRadius: BorderRadius.circular(22),
               border: Border.all(color: Colors.grey.shade200),
             ),
-            child: TextField(
+            child: 
+            TextField(
               controller: controller,
               focusNode: inputFocusNode,
               minLines: 1,

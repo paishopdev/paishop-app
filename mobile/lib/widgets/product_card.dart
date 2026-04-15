@@ -195,51 +195,27 @@ final imageHeight = isSmallPhone ? 180.0 : (isTablet ? 240.0 : 210.0);
                     ),
                   ),
                   const SizedBox(height: 10),
-                 Row(
-  children: [
-    Expanded(
-      child: OutlinedButton.icon(
-        onPressed: onAskAboutProduct,
-        icon: const Icon(Icons.chat_bubble_outline_rounded),
-        label: const Text("Ürün hakkında sor"),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF6C63FF),
-          side: BorderSide(
-            color: const Color(0xFF6C63FF).withOpacity(0.22),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+                SizedBox(
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    onPressed: onAskAboutProduct,
+    icon: const Icon(Icons.chat_bubble_outline_rounded),
+    label: const Text("Ürün hakkında sor"),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF6C63FF),
+      side: BorderSide(
+        color: const Color(0xFF6C63FF).withOpacity(0.22),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      textStyle: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
       ),
     ),
-    const SizedBox(width: 10),
-    Expanded(
-      child: ElevatedButton.icon(
-        onPressed: () => _openLink(context),
-        icon: const Icon(Icons.shopping_bag_outlined),
-        label: const Text("Ürüne Git"),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF6C63FF),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    ),
-  ],
+  ),
 ),
                   if (product.rating != null || product.reviews != null) ...[
                     const SizedBox(height: 10),
