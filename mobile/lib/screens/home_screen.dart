@@ -40,6 +40,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController controller = TextEditingController();
   final ScrollController scrollController = ScrollController();
+  final FocusNode inputFocusNode = FocusNode();
 
   List<ChatMessage> messages = [];
   List<ChatItem> chatHistory = [];
@@ -145,6 +146,26 @@ final Color userBubbleColor = const Color(0xFF6C63FF);
   }
 }
 
+void askAboutProduct(Product product) {
+  final basePrompt =
+      '"${product.name}" ürünü hakkında soru sor. '
+      'Örneğin: yorumları nasıl, özellikleri neler, farklı satıcıları var mı?';
+
+  controller.text = basePrompt;
+  controller.selection = TextSelection.fromPosition(
+    TextPosition(offset: controller.text.length),
+  );
+
+  inputFocusNode.requestFocus();
+}
+
+@override
+void dispose() {
+  controller.dispose();
+  scrollController.dispose();
+  inputFocusNode.dispose();
+  super.dispose();
+}
 
 
   @override
@@ -400,6 +421,23 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
   }
 });
 
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (!scrollController.hasClients) return;
+
+  final hasRichContent =
+      products.isNotEmpty || comparison != null || actions.isNotEmpty;
+
+  if (hasRichContent) {
+    scrollController.animateTo(
+      previousMaxScroll,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  } else {
+    scrollToBottom();
+  }
+});
+
 Future<void> sendQuickAction(String action) async {
   controller.text = action;
   await search();
@@ -422,8 +460,6 @@ Future<void> sendQuickAction(String action) async {
     setState(() {
       loading = false;
     });
-
-    scrollToBottom();
   }
 
   void startNewChat() {
@@ -595,16 +631,17 @@ Future<void> sendQuickAction(String action) async {
 
   Widget buildProducts(List<Product> products) {
   return Column(
-    children: products
-        .map(
-          (product) => ProductCard(
-            product: product,
-            isFavorite: favoriteLinks.contains(product.link),
-            onFavorite: () => toggleFavorite(product),
-          ),
-        )
-        .toList(),
-  );
+  children: products
+      .map(
+        (product) => ProductCard(
+          product: product,
+          isFavorite: favoriteLinks.contains(product.link),
+          onFavorite: () => toggleFavorite(product),
+          onAskAboutProduct: () => askAboutProduct(product),
+        ),
+      )
+      .toList(),
+);
 }
 
 Widget buildComparisonBox(Map<String, dynamic> comparison) {
@@ -1265,6 +1302,7 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
             ),
             child: TextField(
               controller: controller,
+              focusNode: inputFocusNode,
               minLines: 1,
               maxLines: 4,
               onSubmitted: (_) => search(),

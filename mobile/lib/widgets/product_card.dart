@@ -5,19 +5,21 @@ import '../utils/responsive.dart';
 
 
 class ProductCard extends StatelessWidget {
-  const ProductCard({
-    super.key,
-    required this.product,
-    this.onFavorite,
-    this.isFavorite = false,
-  });
+const ProductCard({
+  super.key,
+  required this.product,
+  this.onFavorite,
+  this.onAskAboutProduct,
+  this.isFavorite = false,
+});
   
 
   final Product product;
   final VoidCallback? onFavorite;
+  final VoidCallback? onAskAboutProduct;
   final bool isFavorite;
 
-  Future<void> _openLink(BuildContext context) async {
+Future<void> _openLink(BuildContext context) async {
   if (product.link.isEmpty) return;
 
   String url = product.link.trim();
@@ -29,15 +31,20 @@ class ProductCard extends StatelessWidget {
   final uri = Uri.parse(url);
 
   try {
-    await launchUrl(
+    final opened = await launchUrl(
       uri,
       mode: LaunchMode.externalApplication,
     );
+
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Ürün linki açılamadı")),
+      );
+    }
   } catch (e) {
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Ürün linki açılamadı"),
-      ),
+      const SnackBar(content: Text("Ürün linki açılamadı")),
     );
   }
 }
@@ -188,40 +195,52 @@ final imageHeight = isSmallPhone ? 180.0 : (isTablet ? 240.0 : 210.0);
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.price,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF6C63FF),
-                          ),
-                        ),
-                      ),
-                      if (product.platform.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Text(
-                            product.platform,
-                            style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                 Row(
+  children: [
+    Expanded(
+      child: OutlinedButton.icon(
+        onPressed: onAskAboutProduct,
+        icon: const Icon(Icons.chat_bubble_outline_rounded),
+        label: const Text("Ürün hakkında sor"),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF6C63FF),
+          side: BorderSide(
+            color: const Color(0xFF6C63FF).withOpacity(0.22),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    ),
+    const SizedBox(width: 10),
+    Expanded(
+      child: ElevatedButton.icon(
+        onPressed: () => _openLink(context),
+        icon: const Icon(Icons.shopping_bag_outlined),
+        label: const Text("Ürüne Git"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF6C63FF),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    ),
+  ],
+),
                   if (product.rating != null || product.reviews != null) ...[
                     const SizedBox(height: 10),
                     Wrap(
