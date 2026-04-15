@@ -4,6 +4,8 @@ const {
   generateChatTitle,
 } = require('../services/chatAiService');
 
+console.log('CHAT CONTROLLER VERSION: normalizeActions v2 loaded');
+
 function normalizeActions(actions) {
   if (!actions) return [];
 
@@ -173,6 +175,7 @@ const sendChatMessage = async (req, res) => {
     });
 
     const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
+    console.log('normalizeActions typeof =', typeof normalizeActions);
     const safeActions = normalizeActions(aiResult.actions);
     const safeComparison = aiResult.comparison || null;
     const safeAssistantText = aiResult.assistantText || '';
