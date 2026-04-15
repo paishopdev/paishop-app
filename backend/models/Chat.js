@@ -23,21 +23,27 @@ const messageSchema = new mongoose.Schema(
         short_reason: String,
       },
     ],
-    actions: [String],
+    actions: {
+      type: [String],
+      default: [],
+    },
     comparison: {
-      summary: String,
-      winner: String,
-      highlights: [String],
-      products: [
-        {
-          name: String,
-          price: String,
-          platform: String,
-          image: String,
-          link: String,
-          short_reason: String,
-        },
-      ],
+      type: {
+        summary: String,
+        winner: String,
+        highlights: [String],
+        products: [
+          {
+            name: String,
+            price: String,
+            platform: String,
+            image: String,
+            link: String,
+            short_reason: String,
+          },
+        ],
+      },
+      default: null,
     },
   },
   { _id: false }

@@ -4,6 +4,38 @@ const {
   generateChatTitle,
 } = require('../services/chatAiService');
 
+function normalizeActions(actions) {
+  if (!actions) return [];
+
+  if (Array.isArray(actions)) {
+    return actions
+      .map((item) => String(item).trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof actions === 'string') {
+    const text = actions.trim();
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => String(item).trim())
+          .filter((item) => item.length > 0);
+      }
+    } catch (_) {}
+
+    return text
+      .replace(/^\[/, '')
+      .replace(/\]$/, '')
+      .split(',')
+      .map((item) => item.replace(/['"]/g, '').trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+}
+
 const createChat = async (req, res) => {
   try {
     const { userId, firstMessage } = req.body;
@@ -96,7 +128,9 @@ const addMessageToChat = async (req, res) => {
     chat.messages.push({
       role,
       text,
-      products: products || [],
+      products: Array.isArray(products) ? products : [],
+      actions: [],
+      comparison: null,
     });
 
     await chat.save();
@@ -129,6 +163,8 @@ const sendChatMessage = async (req, res) => {
       role: 'user',
       text: userText,
       products: [],
+      actions: [],
+      comparison: null,
     });
 
     const aiResult = await generateChatReply({
@@ -136,21 +172,26 @@ const sendChatMessage = async (req, res) => {
       previousMessages: chat.messages,
     });
 
+    const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
+    const safeActions = normalizeActions(aiResult.actions);
+    const safeComparison = aiResult.comparison || null;
+    const safeAssistantText = aiResult.assistantText || '';
+
     chat.messages.push({
       role: 'assistant',
-      text: aiResult.assistantText || '',
-      products: Array.isArray(aiResult.products) ? aiResult.products : [],
-      actions: Array.isArray(aiResult.actions) ? aiResult.actions : [],
-      comparison: aiResult.comparison || null,
+      text: safeAssistantText,
+      products: safeProducts,
+      actions: safeActions,
+      comparison: safeComparison,
     });
 
     await chat.save();
-    
+
     return res.json({
-      assistantText: aiResult.assistantText || '',
-      products: Array.isArray(aiResult.products) ? aiResult.products : [],
-      actions: Array.isArray(aiResult.actions) ? aiResult.actions : [],
-      comparison: aiResult.comparison || null,
+      assistantText: safeAssistantText,
+      products: safeProducts,
+      actions: safeActions,
+      comparison: safeComparison,
       chat,
     });
   } catch (error) {
