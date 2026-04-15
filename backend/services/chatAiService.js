@@ -916,59 +916,6 @@ function normalizeActions(actions) {
   return [];
 }
 
-function buildSmallTalkReply(userMessage = '') {
-  const text = String(userMessage).toLowerCase().trim();
-
-  if (
-    text === 'merhaba' ||
-    text === 'selam' ||
-    text === 'selamlar' ||
-    text === 'hey' ||
-    text === 'hi' ||
-    text === 'hello'
-  ) {
-    return 'Merhaba 👋 Ben Shopi. İstersen sana ürün önerileri, karşılaştırma ya da bütçene uygun seçenekler konusunda yardımcı olayım.';
-  }
-
-  if (
-    text.includes('nasılsın') ||
-    text.includes('nasilsin') ||
-    text.includes('iyi misin')
-  ) {
-    return 'İyiyim, teşekkür ederim 😊 Ben Shopi, sana uygun ürünleri bulmaya hazırım.';
-  }
-
-  if (
-    text.includes('napıyorsun') ||
-    text.includes('napiyorsun') ||
-    text.includes('ne yapıyorsun')
-  ) {
-    return 'Buradayım, sana en uygun ürünleri bulmak ve karşılaştırmak için hazırım 😄';
-  }
-
-  if (
-    text.includes('teşekkürler') ||
-    text.includes('tesekkurler') ||
-    text.includes('teşekkür ederim') ||
-    text.includes('tesekkur ederim') ||
-    text.includes('sağ ol') ||
-    text.includes('sag ol')
-  ) {
-    return 'Rica ederim 😊 İstersen başka bir ürün için de yardımcı olayım.';
-  }
-
-  if (
-    text.includes('görüşürüz') ||
-    text.includes('gorusuruz') ||
-    text.includes('hoşçakal') ||
-    text.includes('hoscakal') ||
-    text.includes('bye')
-  ) {
-    return 'Görüşürüz 👋 İhtiyacın olursa yine buradayım.';
-  }
-
-  return null;
-}
 
 function extractRecentProductsForComparison(previousMessages = [], limit = 6) {
   const collected = [];
@@ -1007,6 +954,7 @@ function extractRecentProductsForComparison(previousMessages = [], limit = 6) {
   return unique.slice(0, limit);
 }
 
+
 async function generateChatReply({ userMessage, previousMessages = [] }) {
   const recentProducts = extractRecentProducts(previousMessages);
   const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
@@ -1030,18 +978,20 @@ const shoppingKeywords = [
 ];
 
 const isShoppingRelated = shoppingKeywords.some((keyword) => text.includes(keyword));
-const smallTalkReply = buildSmallTalkReply(userMessage);
+const isSmallTalk = isSmallTalkMessage(userMessage);
 
-if (!isShoppingRelated && planner.intent === 'general_question') {
-  if (smallTalkReply) {
-    return {
-      assistantText: smallTalkReply,
-      products: [],
-      actions: [],
-      comparison: null,
-    };
-  }
+if (isSmallTalk) {
+  const smallTalkReply = await generateSmallTalkReply(userMessage, previousMessages);
 
+  return {
+    assistantText: smallTalkReply,
+    products: [],
+    actions: [],
+    comparison: null,
+  };
+}
+
+if (!isShoppingRelated) {
   return {
     assistantText:
       'Ben daha çok alışveriş, ürün önerisi ve karşılaştırma konusunda yardımcı oluyorum. İstersen bir ürün, kategori, bütçe veya özellik söyle; sana uygun seçenekler bulayım.',
@@ -1050,7 +1000,6 @@ if (!isShoppingRelated && planner.intent === 'general_question') {
     comparison: null,
   };
 }
-
   let searchedProducts = [];
 
   if (planner.needs_product_search) {
@@ -1287,6 +1236,98 @@ ${firstMessage}
   });
 
   return response.choices[0].message.content.trim().replace(/^"|"$/g, '');
+}
+
+function isSmallTalkMessage(userMessage = '') {
+  const text = String(userMessage)
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\sçğıöşü]/gi, '');
+
+    if (text.length <= 20 && !text.includes('ürün') && !text.includes('fiyat')) {
+      return true;
+    }
+
+  const smallTalkKeywords = [
+    'merhaba',
+    'selam',
+    'selamlar',
+    'hey',
+    'hi',
+    'hello',
+    'nasılsın',
+    'nasilsin',
+    'iyi misin',
+    'napıyorsun',
+    'napiyorsun',
+    'ne yapıyorsun',
+    'teşekkürler',
+    'tesekkurler',
+    'teşekkür ederim',
+    'tesekkur ederim',
+    'sağ ol',
+    'sag ol',
+    'görüşürüz',
+    'gorusuruz',
+    'hoşçakal',
+    'hoscakal',
+    'bye'
+  ];
+
+  return smallTalkKeywords.some(keyword => text.includes(keyword));
+}
+
+async function generateSmallTalkReply(userMessage, previousMessages = []) {
+  console.log('SMALL TALK DYNAMIC HIT:', userMessage);
+
+  const recentAssistantMessages = previousMessages
+    .filter((m) => m && m.role === 'assistant' && m.text)
+    .slice(-4)
+    .map((m) => `- ${m.text}`)
+    .join('\n');
+
+  const styleOptions = [
+    'sıcak ve kısa',
+    'samimi ve hafif esprili',
+    'rahat ve doğal',
+    'pozitif ve canlı'
+  ];
+
+  const randomStyle =
+    styleOptions[Math.floor(Math.random() * styleOptions.length)];
+
+  const prompt = `
+Sen Shopi'sin.
+Kullanıcıyla konuşan samimi bir alışveriş asistanısın.
+Şu an kullanıcı küçük sohbet yapıyor.
+Cevabın kısa, doğal ve insan gibi olsun.
+Robot gibi, kalıp gibi veya tekrar eden cevaplar verme.
+Daha önce verdiğin cevaplara fazla benzeme.
+Cevap en fazla 2 kısa cümle olsun.
+Tarzın: ${randomStyle}
+
+Önceki bazı assistant cevapları:
+${recentAssistantMessages || '- Yok'}
+
+Kullanıcı mesajı:
+"${userMessage}"
+
+Kurallar:
+- Gereksiz resmi konuşma yapma.
+- Aynı kalıpları tekrar etme.
+- Gerekirse sohbeti nazikçe alışveriş yardımına bağlayabilirsin.
+- Sadece düz cevap metni yaz.
+`;
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 1.2,
+    presence_penalty: 0.8,
+    frequency_penalty: 0.7,
+  });
+
+  return response.choices[0].message.content.trim();
 }
 
 module.exports = {
