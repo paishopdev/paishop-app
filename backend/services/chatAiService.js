@@ -495,7 +495,6 @@ function buildFallbackActions(products = [], planner = {}, userMessage = '') {
 
   if (sameCategoryProducts.length >= 2) {
     actions.push('Karşılaştır');
-    actions.push('En iyisini seç');
   }
 
   actions.push('Benzer ürünler');
@@ -882,7 +881,6 @@ function detectActionCommand(userMessage = '') {
   const text = normalizeActionLabel(userMessage);
 
   if (text === 'karsilastir') return 'compare';
-  if (text === 'en iyisini sec') return 'pick_best';
   if (text === 'benzer urunler') return 'find_similar';
   if (text === 'daha ucuz alternatifler') return 'find_cheaper';
 
@@ -1181,29 +1179,6 @@ if (actionCommand === 'compare') {
 
   return {
     assistantText: 'Karşılaştırma yapabilmem için önce aynı kategoride en az 2 ürün göstermem gerekiyor.',
-    products: [],
-    actions: [],
-    comparison: null,
-  };
-}
-
-if (actionCommand === 'pick_best') {
-  const bestProducts =
-    stableBatchProducts.length >= 1 ? stableBatchProducts : comparisonProducts;
-
-  const winner = selectWinnerProduct(bestProducts);
-
-  if (winner) {
-    return {
-      assistantText: `Bence en mantıklı seçim ${winner.name}. Fiyat, içerik ve genel denge açısından daha güçlü görünüyor.`,
-      products: [],
-      actions: [],
-      comparison: buildDeterministicComparison(bestProducts),
-    };
-  }
-
-  return {
-    assistantText: 'En iyi seçimi yapabilmem için önce birkaç ürün göstermem gerekiyor.',
     products: [],
     actions: [],
     comparison: null,
