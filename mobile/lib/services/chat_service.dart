@@ -88,7 +88,7 @@ class ChatService {
     }
   }
 
-  static Future<Map<String, dynamic>> sendMessage({
+static Future<Map<String, dynamic>> sendMessage({
   required String chatId,
   required String message,
   Product? selectedProduct,
@@ -113,10 +113,15 @@ class ChatService {
     }),
   );
 
+  print("SEND MESSAGE STATUS: ${response.statusCode}");
+print("SEND MESSAGE BODY: ${response.body}");
+
+
+
   if (response.statusCode == 200) {
     return jsonDecode(response.body);
   } else {
-    throw Exception("Mesaj gönderilemedi");
+    throw Exception("Mesaj gönderilemedi: ${response.body}");
   }
 }
 }

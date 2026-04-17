@@ -1168,7 +1168,7 @@ async function generateChatReply({
     });
 
     return {
-      assistantText: '',
+      assistantText: 'Ürün detayını hazırladım.',
       products: [],
       actions: [],
       comparison: null,
@@ -1705,10 +1705,15 @@ JSON formatı:
   const text = response.choices[0].message.content;
   const parsed = safeParseJson(text);
 
-  return parsed || {
-    title: 'Ürün detayı',
-    bullets: ['Bu ürün hakkında şu an kısa bilgi verebildim.'],
-  };
+  return {
+  title:
+    typeof parsed?.title === 'string' && parsed.title.trim().length > 0
+      ? parsed.title.trim()
+      : 'Ürün detayı',
+  bullets: bullets.length > 0
+    ? bullets
+    : ['Bu ürün hakkında şu an kısa bilgi verebildim.'],
+};
 }
 
 module.exports = {

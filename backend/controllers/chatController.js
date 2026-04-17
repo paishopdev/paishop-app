@@ -188,7 +188,10 @@ const sendChatMessage = async (req, res) => {
     const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
     const safeActions = normalizeActions(aiResult.actions);
     const safeComparison = aiResult.comparison || null;
-    const safeAssistantText = aiResult.assistantText || '';
+    const safeAssistantText =
+  (typeof aiResult.assistantText === 'string' && aiResult.assistantText.trim().length > 0)
+    ? aiResult.assistantText.trim()
+    : (aiResult.detailCard ? 'Ürün detayını hazırladım.' : 'Sana yardımcı olmaya çalışıyorum.');
     const safeDetailCard = aiResult.detailCard || null;
 
     console.log('normalizeActions typeof =', typeof normalizeActions);
@@ -196,11 +199,11 @@ const sendChatMessage = async (req, res) => {
 
     chat.messages.push({
       role: 'assistant',
-      text: safeAssistantText,
-      products: safeProducts,
-      actions: safeActions,
-      comparison: safeComparison,
-      detailCard: safeDetailCard,
+      text: typeof safeAssistantText === 'string' ? safeAssistantText : '',
+      products: Array.isArray(safeProducts) ? safeProducts : [],
+      actions: Array.isArray(safeActions) ? safeActions : [],
+      comparison: safeComparison || null,
+      detailCard: safeDetailCard || null,
       contextProduct: null,
     });
 
