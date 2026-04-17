@@ -365,42 +365,36 @@ Future<void> search() async {
   final query = controller.text.trim();
   if (query.isEmpty) return;
 
- 
-
   final selectedContextBeforeSend = selectedProductContext;
 
-setState(() {
-  messages.add(
-    ChatMessage(
-      text: query,
-      isUser: true,
-      contextTitle: selectedContextBeforeSend?.name,
-      contextImage: selectedContextBeforeSend?.image,
-    ),
-  );
-  loading = true;
-});
+  setState(() {
+    messages.add(
+      ChatMessage(
+        text: query,
+        isUser: true,
+        contextTitle: selectedContextBeforeSend?.name,
+        contextImage: selectedContextBeforeSend?.image,
+      ),
+    );
+    loading = true;
+  });
 
   controller.clear();
   scrollToBottom();
 
   await createNewChatIfNeeded(query);
 
-
   debugPrint("SELECTED FRONTEND PRODUCT: ${selectedProductContext?.name}");
-debugPrint("QUESTION TO SEND: $query");
+  debugPrint("QUESTION TO SEND: $query");
 
   try {
     final result = await ChatService.sendMessage(
-  chatId: currentChatId,
-  message: query,
-  selectedProduct: selectedProductContext,
-);
+      chatId: currentChatId,
+      message: query,
+      selectedProduct: selectedProductContext,
+    );
 
-    final assistantText =
-        (result["assistantText"] ?? "").toString().trim().isNotEmpty
-            ? result["assistantText"].toString()
-            : "Sana yardımcı olmaya çalışıyorum.";
+    final rawAssistantText = (result["assistantText"] ?? "").toString().trim();
 
     final productsJson =
         result["products"] is List ? result["products"] as List : [];
@@ -417,13 +411,14 @@ debugPrint("QUESTION TO SEND: $query");
         ? Map<String, dynamic>.from(result["comparison"])
         : null;
 
-        final detailCard = result["detailCard"] != null
-    ? Map<String, dynamic>.from(result["detailCard"])
-    : null;
+    final detailCard = result["detailCard"] != null
+        ? Map<String, dynamic>.from(result["detailCard"])
+        : null;
 
     debugPrint("ACTIONS FROM BACKEND: $actions");
     debugPrint("FULL RESULT: $result");
     debugPrint("COMPARISON FROM BACKEND: ${result["comparison"]}");
+    debugPrint("DETAIL CARD FROM BACKEND: $detailCard");
 
     final previousMaxScroll = scrollController.hasClients
         ? scrollController.position.maxScrollExtent
@@ -431,26 +426,26 @@ debugPrint("QUESTION TO SEND: $query");
 
     setState(() {
       messages.add(
-  ChatMessage(
-    text: assistantText,
-    isUser: false,
-    products: products.cast<Product>(),
-    actions: actions,
-    comparison: comparison,
-    detailCard: detailCard,
-  ),
-);
+        ChatMessage(
+          text: rawAssistantText,
+          isUser: false,
+          products: products.cast<Product>(),
+          actions: actions,
+          comparison: comparison,
+          detailCard: detailCard,
+        ),
+      );
 
       selectedProductContext = null;
     });
 
-    
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!scrollController.hasClients) return;
 
-      final hasRichContent =
-          products.isNotEmpty || comparison != null || actions.isNotEmpty;
+      final hasRichContent = products.isNotEmpty ||
+          comparison != null ||
+          actions.isNotEmpty ||
+          detailCard != null;
 
       if (hasRichContent) {
         scrollController.animateTo(
@@ -638,15 +633,15 @@ Widget buildMessageBubble(ChatMessage message) {
             ),
           ),
         if (message.text.trim().isNotEmpty)
-          Text(
-            message.text,
-            style: TextStyle(
-              color: isUser ? Colors.white : Colors.black87,
-              fontSize: 15,
-              height: 1.45,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
+  Text(
+    message.text,
+    style: TextStyle(
+      color: isUser ? Colors.white : Colors.black87,
+      fontSize: 15,
+      height: 1.45,
+      fontWeight: FontWeight.w400,
+    ),
+  ),
       ],
     ),
   );

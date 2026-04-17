@@ -1159,134 +1159,160 @@ async function generateChatReply({
   previousMessages = [],
   selectedProduct = null,
 }) {
+  if (selectedProduct) {
+    console.log("DETAIL FLOW ACTIVE FOR:", selectedProduct.name);
+
+    const detailResult = await generateSelectedProductDetail({
+      selectedProduct,
+      userMessage,
+    });
+
+    return {
+      assistantText: '',
+      products: [],
+      actions: [],
+      comparison: null,
+      detailCard: {
+        product: {
+          name: selectedProduct.name || '',
+          price: selectedProduct.price || '',
+          platform: selectedProduct.platform || '',
+          image: selectedProduct.image || '',
+          link: selectedProduct.link || '',
+        },
+        title: detailResult.title || 'Ürün detayı',
+        bullets: Array.isArray(detailResult.bullets)
+          ? detailResult.bullets.map((e) => String(e)).slice(0, 4)
+          : [],
+      },
+    };
+  }
+
   const recentProducts = extractRecentProducts(previousMessages);
   const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
   const referencedProduct = resolveProductReference(userMessage, recentProducts);
   const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
- 
+
   const actionCommand = detectActionCommand(userMessage);
   const latestBatchProducts = extractLastProductBatch(previousMessages);
   const stableBatchProducts = filterProductsToSameCategory(
     latestBatchProducts.length > 0 ? latestBatchProducts : comparisonProducts,
     userMessage
   );
-const isSimilarAction = isSimilarRequest(userMessage);
-const isBestChoiceAction = isBestChoiceRequest(userMessage);
-const isCheaperAction = isCheaperRequest(userMessage);
 
-if (actionCommand === 'compare') {
-  const compareProducts =
-    stableBatchProducts.length >= 2 ? stableBatchProducts : comparisonProducts;
+  if (actionCommand === 'compare') {
+    const compareProducts =
+      stableBatchProducts.length >= 2 ? stableBatchProducts : comparisonProducts;
 
-  const deterministicComparison = buildDeterministicComparison(compareProducts);
+    const deterministicComparison = buildDeterministicComparison(compareProducts);
 
-  if (deterministicComparison) {
+    if (deterministicComparison) {
+      return {
+        assistantText: `${deterministicComparison.winner} öne çıkıyor. Senin için seçenekleri net şekilde karşılaştırdım.`,
+        products: [],
+        actions: [],
+        comparison: deterministicComparison,
+      };
+    }
+
     return {
-      assistantText: `${deterministicComparison.winner} öne çıkıyor. Senin için seçenekleri net şekilde karşılaştırdım.`,
+      assistantText: 'Karşılaştırma yapabilmem için önce aynı kategoride en az 2 ürün göstermem gerekiyor.',
       products: [],
       actions: [],
-      comparison: deterministicComparison,
-    };
-  }
-
-  return {
-    assistantText: 'Karşılaştırma yapabilmem için önce aynı kategoride en az 2 ürün göstermem gerekiyor.',
-    products: [],
-    actions: [],
-    comparison: null,
-  };
-}
-
-if (actionCommand === 'find_similar') {
-  const baseProduct =
-    referencedProduct ||
-    stableBatchProducts[0] ||
-    latestBatchProducts[0] ||
-    recentProducts[0] ||
-    null;
-
-  if (baseProduct) {
-    const similarResults = await searchWithFallback(
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    );
-
-    let cleanedSimilar = removeWeakProducts(
-      similarResults,
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    );
-
-    cleanedSimilar = scoreAndRankProducts(
-      cleanedSimilar,
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    ).slice(0, 8);
-
-    const normalizedSimilar = normalizeProducts(cleanedSimilar);
-
-    return {
-      assistantText: `"${baseProduct.name}" için benzer seçenekleri buldum.`,
-      products: normalizedSimilar,
-      actions: buildFallbackActions(normalizedSimilar, {}, baseProduct.name || userMessage),
       comparison: null,
     };
   }
 
-  return {
-    assistantText: 'Benzer ürünler bulabilmem için önce bir ürün seçmem gerekiyor.',
-    products: [],
-    actions: [],
-    comparison: null,
-  };
-}
+  if (actionCommand === 'find_similar') {
+    const baseProduct =
+      referencedProduct ||
+      stableBatchProducts[0] ||
+      latestBatchProducts[0] ||
+      recentProducts[0] ||
+      null;
 
-if (actionCommand === 'find_cheaper') {
-  const baseProduct =
-    referencedProduct ||
-    stableBatchProducts[0] ||
-    latestBatchProducts[0] ||
-    recentProducts[0] ||
-    null;
+    if (baseProduct) {
+      const similarResults = await searchWithFallback(
+        baseProduct.name || userMessage,
+        baseProduct.name || userMessage
+      );
 
-  if (baseProduct) {
-    const basePrice = parsePriceValue(baseProduct.price);
+      let cleanedSimilar = removeWeakProducts(
+        similarResults,
+        baseProduct.name || userMessage,
+        baseProduct.name || userMessage
+      );
 
-    const cheaperResults = await searchWithFallback(
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    );
+      cleanedSimilar = scoreAndRankProducts(
+        cleanedSimilar,
+        baseProduct.name || userMessage,
+        baseProduct.name || userMessage
+      ).slice(0, 8);
 
-    let cleanedCheaper = removeWeakProducts(
-      cheaperResults,
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    ).filter((p) => parsePriceValue(p.price) < basePrice);
+      const normalizedSimilar = normalizeProducts(cleanedSimilar);
 
-    cleanedCheaper = scoreAndRankProducts(
-      cleanedCheaper,
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    ).slice(0, 8);
-
-    const normalizedCheaper = normalizeProducts(cleanedCheaper);
+      return {
+        assistantText: `"${baseProduct.name}" için benzer seçenekleri buldum.`,
+        products: normalizedSimilar,
+        actions: buildFallbackActions(normalizedSimilar, {}, baseProduct.name || userMessage),
+        comparison: null,
+      };
+    }
 
     return {
-      assistantText: `"${baseProduct.name}" için daha uygun fiyatlı alternatifleri buldum.`,
-      products: normalizedCheaper,
-      actions: buildFallbackActions(normalizedCheaper, {}, baseProduct.name || userMessage),
+      assistantText: 'Benzer ürünler bulabilmem için önce bir ürün seçmem gerekiyor.',
+      products: [],
+      actions: [],
       comparison: null,
     };
   }
 
-  return {
-    assistantText: 'Daha ucuz alternatif gösterebilmem için önce bir ürün seçmem gerekiyor.',
-    products: [],
-    actions: [],
-    comparison: null,
-  };
-}
+  if (actionCommand === 'find_cheaper') {
+    const baseProduct =
+      referencedProduct ||
+      stableBatchProducts[0] ||
+      latestBatchProducts[0] ||
+      recentProducts[0] ||
+      null;
+
+    if (baseProduct) {
+      const basePrice = parsePriceValue(baseProduct.price);
+
+      const cheaperResults = await searchWithFallback(
+        baseProduct.name || userMessage,
+        baseProduct.name || userMessage
+      );
+
+      let cleanedCheaper = removeWeakProducts(
+        cheaperResults,
+        baseProduct.name || userMessage,
+        baseProduct.name || userMessage
+      ).filter((p) => parsePriceValue(p.price) < basePrice);
+
+      cleanedCheaper = scoreAndRankProducts(
+        cleanedCheaper,
+        baseProduct.name || userMessage,
+        baseProduct.name || userMessage
+      ).slice(0, 8);
+
+      const normalizedCheaper = normalizeProducts(cleanedCheaper);
+
+      return {
+        assistantText: `"${baseProduct.name}" için daha uygun fiyatlı alternatifleri buldum.`,
+        products: normalizedCheaper,
+        actions: buildFallbackActions(normalizedCheaper, {}, baseProduct.name || userMessage),
+        comparison: null,
+      };
+    }
+
+    return {
+      assistantText: 'Daha ucuz alternatif gösterebilmem için önce bir ürün seçmem gerekiyor.',
+      products: [],
+      actions: [],
+      comparison: null,
+    };
+  }
 
   const planner = await generatePlanner({
     userMessage,
@@ -1295,340 +1321,142 @@ if (actionCommand === 'find_cheaper') {
 
   const text = String(userMessage).toLowerCase().trim();
 
-const shoppingKeywords = [
-  'ürün', 'öner', 'oner', 'fiyat', 'bütçe', 'butce', 'karşılaştır', 'karsilastir',
-  'telefon', 'kulaklık', 'kulaklik', 'mouse', 'tablet', 'bilgisayar', 'laptop',
-  'şarj', 'sarj', 'kamera', 'krem', 'makyaj', 'ayakkabı', 'ayakkabi', 'elbise',
-  'hediye', 'marka', 'ucuz', 'pahalı', 'pahali', 'benzer', 'alternatif',
-  'çanta', 'canta', 'saat', 'parfüm', 'parfum', 'kulak içi', 'oyuncu', 'gaming'
-];
+  const shoppingKeywords = [
+    'ürün', 'öner', 'oner', 'fiyat', 'bütçe', 'butce', 'karşılaştır', 'karsilastir',
+    'telefon', 'kulaklık', 'kulaklik', 'mouse', 'tablet', 'bilgisayar', 'laptop',
+    'şarj', 'sarj', 'kamera', 'krem', 'makyaj', 'ayakkabı', 'ayakkabi', 'elbise',
+    'hediye', 'marka', 'ucuz', 'pahalı', 'pahali', 'benzer', 'alternatif',
+    'çanta', 'canta', 'saat', 'parfüm', 'parfum', 'kulak içi', 'oyuncu', 'gaming'
+  ];
 
-const isShoppingRelated = shoppingKeywords.some((keyword) => text.includes(keyword));
-const isSmallTalk = isSmallTalkMessage(userMessage);
+  const isShoppingRelated = shoppingKeywords.some((keyword) => text.includes(keyword));
+  const isSmallTalk = isSmallTalkMessage(userMessage);
 
-if (isSmallTalk) {
-  const smallTalkReply = await generateSmallTalkReply(userMessage, previousMessages);
-
-  return {
-    assistantText: smallTalkReply,
-    products: [],
-    actions: [],
-    comparison: null,
-  };
-}
-
-if (!isShoppingRelated) {
-  return {
-    assistantText:
-      'Ben daha çok alışveriş, ürün önerisi ve karşılaştırma konusunda yardımcı oluyorum. İstersen bir ürün, kategori, bütçe veya özellik söyle; sana uygun seçenekler bulayım.',
-    products: [],
-    actions: [],
-    comparison: null,
-  };
-}
-
-if (isComparisonRequest && sameCategoryLatestBatch.length >= 2) {
-  const compareAnswer = await generateAnswer({
-    userMessage: `Bu ürünleri kısa ve net şekilde karşılaştır: ${sameCategoryLatestBatch
-      .map((p) => p.name)
-      .join(', ')}`,
-    previousMessages,
-    planner: {
-      intent: 'comparison',
-      needs_product_search: false,
-      search_query: '',
-      uses_recent_products: true,
-    },
-    searchedProducts: sameCategoryLatestBatch,
-  });
-
-  return {
-    assistantText: compareAnswer.assistant_text || 'Senin için seçenekleri karşılaştırdım.',
-    products: [],
-    actions: [],
-    comparison: buildComparisonData(compareAnswer, sameCategoryLatestBatch, 'karşılaştır'),
-  };
-}
-
-if (isBestChoiceAction && sameCategoryLatestBatch.length >= 2) {
-  const bestAnswer = await generateAnswer({
-    userMessage: `Bu ürünler arasından en iyi seçimi yap ve nedenini kısa açıkla: ${sameCategoryLatestBatch
-      .map((p) => p.name)
-      .join(', ')}`,
-    previousMessages,
-    planner: {
-      intent: 'best_choice',
-      needs_product_search: false,
-      search_query: '',
-      uses_recent_products: true,
-    },
-    searchedProducts: sameCategoryLatestBatch,
-  });
-
-  return {
-    assistantText:
-      bestAnswer.assistant_text || 'Senin için en mantıklı seçimi belirledim.',
-    products: [],
-    actions: [],
-    comparison: buildComparisonData(bestAnswer, sameCategoryLatestBatch, 'karşılaştır'),
-  };
-}
-
-if (isSimilarAction) {
-  const baseProduct =
-    referencedProduct ||
-    sameCategoryLatestBatch[0] ||
-    latestBatchProducts[0] ||
-    recentProducts[0] ||
-    null;
-
-  if (baseProduct) {
-    const similarResults = await searchWithFallback(baseProduct.name || userMessage, baseProduct.name || userMessage);
-    const cleanedSimilar = scoreAndRankProducts(
-      removeWeakProducts(similarResults, baseProduct.name || userMessage, baseProduct.name || userMessage),
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    ).slice(0, 8);
-
-    const similarAnswer = await generateAnswer({
-      userMessage: `Bu ürüne benzer alternatifler göster: ${baseProduct.name}`,
-      previousMessages,
-      planner: {
-        intent: 'refinement',
-        needs_product_search: true,
-        search_query: baseProduct.name || '',
-        uses_recent_products: true,
-      },
-      searchedProducts: cleanedSimilar,
-    });
+  if (isSmallTalk) {
+    const smallTalkReply = await generateSmallTalkReply(userMessage, previousMessages);
 
     return {
-      assistantText:
-        similarAnswer.assistant_text ||
-        `"${baseProduct.name}" ürününe benzer seçenekleri getirdim.`,
-      products:
-        Array.isArray(similarAnswer.products) && similarAnswer.products.length > 0
-          ? normalizeProducts(similarAnswer.products)
-          : normalizeProducts(cleanedSimilar),
-      actions: buildFallbackActions(
-        Array.isArray(similarAnswer.products) && similarAnswer.products.length > 0
-          ? normalizeProducts(similarAnswer.products)
-          : normalizeProducts(cleanedSimilar),
-        planner,
-        userMessage
-      ),
+      assistantText: smallTalkReply,
+      products: [],
+      actions: [],
       comparison: null,
     };
   }
-}
 
-if (isCheaperAction) {
-  const baseProduct =
-    referencedProduct ||
-    sameCategoryLatestBatch[0] ||
-    latestBatchProducts[0] ||
-    recentProducts[0] ||
-    null;
-
-    if (selectedProduct) {
-      const detailResult = await generateSelectedProductDetail({
-        selectedProduct,
-        userMessage,
-      });
-    
-      return {
-        assistantText: '',
-        products: [],
-        actions: [],
-        comparison: null,
-        detailCard: {
-          product: {
-            name: selectedProduct.name || '',
-            price: selectedProduct.price || '',
-            platform: selectedProduct.platform || '',
-            image: selectedProduct.image || '',
-            link: selectedProduct.link || '',
-          },
-          title: detailResult.title || 'Ürün detayı',
-          bullets: Array.isArray(detailResult.bullets)
-            ? detailResult.bullets.map((e) => String(e)).slice(0, 4)
-            : [],
-        },
-      };
-    }
-
-  if (baseProduct) {
-    const basePrice = parsePriceValue(baseProduct.price);
-    const cheaperResults = await searchWithFallback(baseProduct.name || userMessage, baseProduct.name || userMessage);
-
-    const cleanedCheaper = scoreAndRankProducts(
-      removeWeakProducts(cheaperResults, baseProduct.name || userMessage, baseProduct.name || userMessage)
-        .filter((p) => parsePriceValue(p.price) < basePrice),
-      baseProduct.name || userMessage,
-      baseProduct.name || userMessage
-    ).slice(0, 8);
-
-    const cheaperAnswer = await generateAnswer({
-      userMessage: `Bu ürüne göre daha ucuz alternatifler göster: ${baseProduct.name}`,
-      previousMessages,
-      planner: {
-        intent: 'refinement',
-        needs_product_search: true,
-        search_query: baseProduct.name || '',
-        uses_recent_products: true,
-      },
-      searchedProducts: cleanedCheaper,
-    });
-
+  if (!isShoppingRelated) {
     return {
       assistantText:
-        cheaperAnswer.assistant_text ||
-        `"${baseProduct.name}" ürününe göre daha uygun fiyatlı alternatifler buldum.`,
-      products:
-        Array.isArray(cheaperAnswer.products) && cheaperAnswer.products.length > 0
-          ? normalizeProducts(cheaperAnswer.products)
-          : normalizeProducts(cleanedCheaper),
-      actions: buildFallbackActions(
-        Array.isArray(cheaperAnswer.products) && cheaperAnswer.products.length > 0
-          ? normalizeProducts(cheaperAnswer.products)
-          : normalizeProducts(cleanedCheaper),
-        planner,
-        userMessage
-      ),
+        'Ben daha çok alışveriş, ürün önerisi ve karşılaştırma konusunda yardımcı oluyorum. İstersen bir ürün, kategori, bütçe veya özellik söyle; sana uygun seçenekler bulayım.',
+      products: [],
+      actions: [],
       comparison: null,
     };
   }
-}
+
   let searchedProducts = [];
 
   if (planner.needs_product_search) {
     const rawResults = await searchWithFallback(userMessage, planner.search_query);
     const { hasPriceFilter, min, max } = detectPriceIntent(userMessage);
-  
+
     let filteredResults = [...rawResults];
-  
+
     filteredResults = filterProductsByPriceIntent(filteredResults, userMessage);
-  
+
     if (filteredResults.length > 0) {
       const featureFiltered = filterProductsByFeatures(filteredResults, userMessage);
       if (featureFiltered.length > 0) {
         filteredResults = featureFiltered;
       }
     }
-  
+
     filteredResults = removeWeakProducts(
       filteredResults,
       userMessage,
       planner.search_query
     );
-  
+
     filteredResults = scoreAndRankProducts(
       filteredResults,
       userMessage,
       planner.search_query
     );
-  
+
     if (hasPriceFilter && filteredResults.length < 3) {
       const broaderResults = await searchGoogleShopping(
         sanitizeSearchQuery(userMessage)
       );
-  
+
       let broaderFiltered = filterProductsByPriceIntent(
         broaderResults,
         userMessage
       );
-  
+
       if (broaderFiltered.length > 0) {
         const broaderFeatureFiltered = filterProductsByFeatures(
           broaderFiltered,
           userMessage
         );
-  
-        if (hasPriceFilter && filteredResults.length < 4) {
-          const broaderResults = await searchGoogleShopping(
-            sanitizeSearchQuery(userMessage)
-          );
-        
-          let bestExpandedResults = [...filteredResults];
-        
-          const expandedLevel1 = expandPriceRange(min, max, 1);
-          let broaderFilteredLevel1 = filterProductsByExplicitRange(
-            broaderResults,
-            expandedLevel1.min,
-            expandedLevel1.max
-          );
-        
-          if (broaderFilteredLevel1.length > 0) {
-            const featureFilteredLevel1 = filterProductsByFeatures(
-              broaderFilteredLevel1,
-              userMessage
-            );
-        
-            if (featureFilteredLevel1.length > 0) {
-              broaderFilteredLevel1 = featureFilteredLevel1;
-            }
-          }
-        
-          broaderFilteredLevel1 = removeWeakProducts(
+
+        if (broaderFeatureFiltered.length > 0) {
+          broaderFiltered = broaderFeatureFiltered;
+        }
+      }
+
+      broaderFiltered = removeWeakProducts(
+        broaderFiltered,
+        userMessage,
+        planner.search_query
+      );
+
+      broaderFiltered = scoreAndRankProducts(
+        broaderFiltered,
+        userMessage,
+        planner.search_query
+      );
+
+      if (broaderFiltered.length > filteredResults.length) {
+        filteredResults = broaderFiltered;
+      }
+
+      if (filteredResults.length < 4) {
+        const expandedLevel1 = expandPriceRange(min, max, 1);
+
+        let broaderFilteredLevel1 = filterProductsByExplicitRange(
+          broaderResults,
+          expandedLevel1.min,
+          expandedLevel1.max
+        );
+
+        if (broaderFilteredLevel1.length > 0) {
+          const featureFilteredLevel1 = filterProductsByFeatures(
             broaderFilteredLevel1,
-            userMessage,
-            planner.search_query
+            userMessage
           );
-        
-          broaderFilteredLevel1 = scoreAndRankProducts(
-            broaderFilteredLevel1,
-            userMessage,
-            planner.search_query
-          );
-        
-          if (broaderFilteredLevel1.length > bestExpandedResults.length) {
-            bestExpandedResults = broaderFilteredLevel1;
+
+          if (featureFilteredLevel1.length > 0) {
+            broaderFilteredLevel1 = featureFilteredLevel1;
           }
-        
-          if (bestExpandedResults.length < 4) {
-            const expandedLevel2 = expandPriceRange(min, max, 2);
-        
-            let broaderFilteredLevel2 = filterProductsByExplicitRange(
-              broaderResults,
-              expandedLevel2.min,
-              expandedLevel2.max
-            );
-        
-            if (broaderFilteredLevel2.length > 0) {
-              const featureFilteredLevel2 = filterProductsByFeatures(
-                broaderFilteredLevel2,
-                userMessage
-              );
-        
-              if (featureFilteredLevel2.length > 0) {
-                broaderFilteredLevel2 = featureFilteredLevel2;
-              }
-            }
-        
-            broaderFilteredLevel2 = removeWeakProducts(
-              broaderFilteredLevel2,
-              userMessage,
-              planner.search_query
-            );
-        
-            broaderFilteredLevel2 = scoreAndRankProducts(
-              broaderFilteredLevel2,
-              userMessage,
-              planner.search_query
-            );
-        
-            if (broaderFilteredLevel2.length > bestExpandedResults.length) {
-              bestExpandedResults = broaderFilteredLevel2;
-            }
-          }
-        
-          if (bestExpandedResults.length > 0) {
-            filteredResults = bestExpandedResults;
-          }
+        }
+
+        broaderFilteredLevel1 = removeWeakProducts(
+          broaderFilteredLevel1,
+          userMessage,
+          planner.search_query
+        );
+
+        broaderFilteredLevel1 = scoreAndRankProducts(
+          broaderFilteredLevel1,
+          userMessage,
+          planner.search_query
+        );
+
+        if (broaderFilteredLevel1.length > filteredResults.length) {
+          filteredResults = broaderFilteredLevel1;
         }
       }
     }
-  
+
     searchedProducts =
       filteredResults.length > 0
         ? filteredResults.slice(0, 10)
@@ -1640,7 +1468,7 @@ if (isCheaperAction) {
       planner.needs_product_search = true;
       planner.search_query = referencedProduct.name || planner.search_query;
     }
-  
+
     if (referenceAction.mode === 'compare_reference' || referenceAction.mode === 'info') {
       planner.needs_product_search = false;
     }
@@ -1663,58 +1491,58 @@ if (isCheaperAction) {
   }
 
   const finalProducts =
-  Array.isArray(answer.products) && answer.products.length > 0
-    ? normalizeProducts(answer.products)
-    : normalizeProducts(searchedProducts);
+    Array.isArray(answer.products) && answer.products.length > 0
+      ? normalizeProducts(answer.products)
+      : normalizeProducts(searchedProducts);
 
-const displayProducts = isComparisonRequest ? [] : finalProducts;
+  const displayProducts = isComparisonRequest ? [] : finalProducts;
 
-const finalActions =
-  displayProducts.length === 0
-    ? (Array.isArray(answer.actions) && answer.actions.length > 0
-        ? answer.actions
-        : [])
-    : (Array.isArray(answer.actions) && answer.actions.length > 0
-        ? answer.actions
-        : buildFallbackActions(displayProducts, planner, userMessage));
+  const finalActions =
+    displayProducts.length === 0
+      ? (Array.isArray(answer.actions) && answer.actions.length > 0
+          ? answer.actions
+          : [])
+      : (Array.isArray(answer.actions) && answer.actions.length > 0
+          ? answer.actions
+          : buildFallbackActions(displayProducts, planner, userMessage));
 
-const finalAssistantText =
-  referenceAction?.assistantText && referencedProduct
-    ? `${referenceAction.assistantText}\n\n${answer.assistant_text || ''}`.trim()
-    : (answer.assistant_text || '');
+  const finalAssistantText =
+    referenceAction?.assistantText && referencedProduct
+      ? `${referenceAction.assistantText}\n\n${answer.assistant_text || ''}`.trim()
+      : (answer.assistant_text || '');
 
-let polishedAssistantText = finalAssistantText;
+  let polishedAssistantText = finalAssistantText;
 
-if ((!finalProducts || finalProducts.length === 0) && planner.needs_product_search) {
-  const { hasPriceFilter, min, max } = detectPriceIntent(userMessage);
+  if ((!finalProducts || finalProducts.length === 0) && planner.needs_product_search) {
+    const { hasPriceFilter, min, max } = detectPriceIntent(userMessage);
 
-  if (hasPriceFilter) {
-    polishedAssistantText =
-      `Tam istediğin fiyat aralığında güçlü sonuç bulamadım.` +
-      `${min != null || max != null ? ' İstersen bütçeyi biraz genişletip tekrar bakabilirim.' : ''}`;
-  } else {
-    polishedAssistantText =
-      'Bu isteğe uygun güçlü ürün bulamadım. İstersen marka, özellik veya bütçe ekleyerek biraz daha netleştirebiliriz.';
+    if (hasPriceFilter) {
+      polishedAssistantText =
+        `Tam istediğin fiyat aralığında güçlü sonuç bulamadım.` +
+        `${min != null || max != null ? ' İstersen bütçeyi biraz genişletip tekrar bakabilirim.' : ''}`;
+    } else {
+      polishedAssistantText =
+        'Bu isteğe uygun güçlü ürün bulamadım. İstersen marka, özellik veya bütçe ekleyerek biraz daha netleştirebiliriz.';
+    }
   }
-}
 
-const compareSourceProducts =
-  isComparisonRequest && comparisonProducts.length >= 2
-    ? comparisonProducts
-    : finalProducts;
+  const compareSourceProducts =
+    isComparisonRequest && comparisonProducts.length >= 2
+      ? comparisonProducts
+      : finalProducts;
 
-const comparison = buildComparisonData(
-  answer,
-  compareSourceProducts,
-  userMessage
-);
+  const comparison = buildComparisonData(
+    answer,
+    compareSourceProducts,
+    userMessage
+  );
 
-return {
-  assistantText: polishedAssistantText,
-  products: displayProducts,
-  actions: finalActions,
-  comparison,
-};
+  return {
+    assistantText: polishedAssistantText,
+    products: displayProducts,
+    actions: finalActions,
+    comparison,
+  };
 }
 
 async function generateChatTitle(firstMessage) {
