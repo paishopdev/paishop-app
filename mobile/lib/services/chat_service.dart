@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/chat_item.dart';
+import '../models/product.dart';
 
 class ChatService {
   static const String baseUrl = "https://paishop-api.onrender.com/api/chats";
@@ -88,27 +89,34 @@ class ChatService {
   }
 
   static Future<Map<String, dynamic>> sendMessage({
-    required String chatId,
-    required String message,
-  }) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse("$baseUrl/$chatId/send"),
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode({
-              "message": message,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
+  required String chatId,
+  required String message,
+  Product? selectedProduct,
+}) async {
+  final response = await http.post(
+    Uri.parse("$baseUrl/$chatId/send"),
+    headers: {"Content-Type": "application/json"},
+    body: jsonEncode({
+      "message": message,
+      "selectedProduct": selectedProduct == null
+          ? null
+          : {
+              "name": selectedProduct.name,
+              "price": selectedProduct.price,
+              "platform": selectedProduct.platform,
+              "image": selectedProduct.image,
+              "link": selectedProduct.link,
+              "rating": selectedProduct.rating,
+              "reviews": selectedProduct.reviews,
+              "short_reason": selectedProduct.shortReason,
+            },
+    }),
+  );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        throw Exception("Mesaj gönderilemedi");
-      }
-    } catch (e) {
-      throw Exception("Mesaj gönderilemedi");
-    }
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Mesaj gönderilemedi");
   }
+}
 }

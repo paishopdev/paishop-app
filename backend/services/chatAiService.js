@@ -816,6 +816,15 @@ Kurallar:
 - Ürün yoksa products boş dizi olabilir.
 - Mevcut ürün bağlamını kullan.
 - Cevabın sonunda gereksiz tekrar yapma.
+- Eğer kullanıcı seçili bir ürün hakkında özellik soruyorsa uzun paragraf yazma.
+- Cevabı en fazla 4 kısa madde halinde ver.
+- Her madde kısa olsun.
+- Eğer yorum soruyorsa "Genel yorum", "Beğenilenler", "Dikkat edilmesi gerekenler" şeklinde kısa satırlar ver.
+- Eğer satıcı soruyorsa varsa farklı mağazaları kısa liste halinde ver.
+- Göz yoran uzun metinlerden kaçın.
+- Ürün detay cevaplarında düz paragraf yerine kısa maddeler kullan.
+- Markdown tablo kullanma.
+- Her satır kısa ve okunabilir olsun.
 - Sadece JSON döndür.
 - Markdown kullanma.
 
@@ -1145,7 +1154,11 @@ function isCheaperRequest(userMessage = '') {
 }
 
 
-async function generateChatReply({ userMessage, previousMessages = [] }) {
+async function generateChatReply({
+  userMessage,
+  previousMessages = [],
+  selectedProduct = null,
+}) {
   const recentProducts = extractRecentProducts(previousMessages);
   const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
   const referencedProduct = resolveProductReference(userMessage, recentProducts);
@@ -1416,6 +1429,33 @@ if (isCheaperAction) {
     latestBatchProducts[0] ||
     recentProducts[0] ||
     null;
+
+    if (selectedProduct) {
+      const detailResult = await generateSelectedProductDetail({
+        selectedProduct,
+        userMessage,
+      });
+    
+      return {
+        assistantText: '',
+        products: [],
+        actions: [],
+        comparison: null,
+        detailCard: {
+          product: {
+            name: selectedProduct.name || '',
+            price: selectedProduct.price || '',
+            platform: selectedProduct.platform || '',
+            image: selectedProduct.image || '',
+            link: selectedProduct.link || '',
+          },
+          title: detailResult.title || 'Ürün detayı',
+          bullets: Array.isArray(detailResult.bullets)
+            ? detailResult.bullets.map((e) => String(e)).slice(0, 4)
+            : [],
+        },
+      };
+    }
 
   if (baseProduct) {
     const basePrice = parsePriceValue(baseProduct.price);
@@ -1782,6 +1822,52 @@ Kurallar:
   });
 
   return response.choices[0].message.content.trim();
+}
+
+async function generateSelectedProductDetail({ selectedProduct, userMessage }) {
+  const prompt = `
+Sen Shopi'sin.
+Kullanıcı seçtiği TEK bir ürün hakkında soru soruyor.
+Uzun paragraf yazma.
+Sadece kısa ve net cevap ver.
+En fazla 4 madde yaz.
+Her madde kısa olsun.
+Ürünleri tekrar listeleme.
+Başka ürün önerme.
+Sadece seçilen ürüne odaklan.
+
+Ürün:
+${JSON.stringify(selectedProduct, null, 2)}
+
+Kullanıcının sorusu:
+${userMessage}
+
+Sadece geçerli JSON döndür.
+
+JSON formatı:
+{
+  "title": "kısa başlık",
+  "bullets": [
+    "kısa madde 1",
+    "kısa madde 2",
+    "kısa madde 3"
+  ]
+}
+`;
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.5,
+  });
+
+  const text = response.choices[0].message.content;
+  const parsed = safeParseJson(text);
+
+  return parsed || {
+    title: 'Ürün detayı',
+    bullets: ['Bu ürün hakkında şu an kısa bilgi verebildim.'],
+  };
 }
 
 module.exports = {

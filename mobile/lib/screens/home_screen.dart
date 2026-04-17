@@ -18,15 +18,21 @@ class ChatMessage {
   final String text;
   final bool isUser;
   final List<Product> products;
-  final List<String>? actions;
+  final List<String> actions;
   final Map<String, dynamic>? comparison;
+  final String? contextTitle;
+  final String? contextImage;
+  final Map<String, dynamic>? detailCard;
 
   ChatMessage({
     required this.text,
     required this.isUser,
     this.products = const [],
-    this.actions,
+    this.actions = const [],
     this.comparison,
+    this.contextTitle,
+    this.contextImage,
+    this.detailCard,
   });
 }
 
@@ -345,21 +351,21 @@ Future<void> search() async {
   final query = controller.text.trim();
   if (query.isEmpty) return;
 
-  String finalUserText = query;
+ 
 
-  if (selectedProductContext != null) {
-    finalUserText =
-        'Seçili ürün: ${selectedProductContext!.name}\n'
-        'Fiyat: ${selectedProductContext!.price}\n'
-        'Mağaza: ${selectedProductContext!.platform}\n'
-        'Link: ${selectedProductContext!.link}\n'
-        'Kullanıcı sorusu: $query';
-  }
+  final selectedContextBeforeSend = selectedProductContext;
 
-  setState(() {
-    messages.add(ChatMessage(text: query, isUser: true));
-    loading = true;
-  });
+setState(() {
+  messages.add(
+    ChatMessage(
+      text: query,
+      isUser: true,
+      contextTitle: selectedContextBeforeSend?.name,
+      contextImage: selectedContextBeforeSend?.image,
+    ),
+  );
+  loading = true;
+});
 
   controller.clear();
   scrollToBottom();
@@ -368,9 +374,10 @@ Future<void> search() async {
 
   try {
     final result = await ChatService.sendMessage(
-      chatId: currentChatId,
-      message: finalUserText,
-    );
+  chatId: currentChatId,
+  message: query,
+  selectedProduct: selectedProductContext,
+);
 
     final assistantText =
         (result["assistantText"] ?? "").toString().trim().isNotEmpty
@@ -392,6 +399,10 @@ Future<void> search() async {
         ? Map<String, dynamic>.from(result["comparison"])
         : null;
 
+        final detailCard = result["detailCard"] != null
+    ? Map<String, dynamic>.from(result["detailCard"])
+    : null;
+
     debugPrint("ACTIONS FROM BACKEND: $actions");
     debugPrint("FULL RESULT: $result");
     debugPrint("COMPARISON FROM BACKEND: ${result["comparison"]}");
@@ -402,14 +413,15 @@ Future<void> search() async {
 
     setState(() {
       messages.add(
-        ChatMessage(
-          text: assistantText,
-          isUser: false,
-          products: products.cast<Product>(),
-          actions: actions,
-          comparison: comparison,
-        ),
-      );
+  ChatMessage(
+    text: assistantText,
+    isUser: false,
+    products: products.cast<Product>(),
+    actions: actions,
+    comparison: comparison,
+    detailCard: detailCard,
+  ),
+);
 
       selectedProductContext = null;
     });
@@ -543,6 +555,7 @@ Future<void> sendQuickAction(String action) async {
     ),
   );
 }
+
 
   Widget buildMessageBubble(ChatMessage message) {
   final isUser = message.isUser;
@@ -847,17 +860,174 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
   );
 }
 
+Widget buildDetailCard(Map<String, dynamic> detailCard) {
+  final product = detailCard["product"] != null
+      ? Map<String, dynamic>.from(detailCard["product"])
+      : <String, dynamic>{};
+
+  final bullets = detailCard["bullets"] is List
+      ? List<String>.from(detailCard["bullets"])
+      : <String>[];
+
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: Colors.grey.shade200),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: product["image"] != null &&
+                      product["image"].toString().isNotEmpty
+                  ? Image.network(
+                      'https://paishop-api.onrender.com/image-proxy?url=${Uri.encodeComponent(product["image"].toString())}',
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 64,
+                        height: 64,
+                        color: Colors.grey.shade100,
+                        child: const Icon(Icons.image_not_supported_outlined),
+                      ),
+                    )
+                  : Container(
+                      width: 64,
+                      height: 64,
+                      color: Colors.grey.shade100,
+                      child: const Icon(Icons.shopping_bag_outlined),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product["name"]?.toString() ?? "",
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if ((product["price"] ?? "").toString().isNotEmpty)
+                    Text(
+                      product["price"].toString(),
+                      style: const TextStyle(
+                        color: Color(0xFF6C63FF),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  if ((product["platform"] ?? "").toString().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      product["platform"].toString(),
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (bullets.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          ...bullets.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
+                    color: Color(0xFF6C63FF),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
  Widget buildChatItem(ChatMessage message) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       buildMessageBubble(message),
 
+      if (message.isUser && message.contextTitle != null)
+  Container(
+    margin: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.subdirectory_arrow_right_rounded,
+          size: 16,
+          color: Colors.grey,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            message.contextTitle!,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  ),
+
       if (!message.isUser && message.products.isNotEmpty)
         buildProducts(message.products),
+        
 
         if (!message.isUser && message.comparison != null)
   buildComparisonBox(message.comparison!),
+
+  if (message.detailCard != null) buildDetailCard(message.detailCard!),
+  
 
       if (!message.isUser &&
           message.actions != null &&
@@ -1273,21 +1443,45 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
 if (selectedProductContext != null)
   Container(
     margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-    padding: const EdgeInsets.all(10),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: const Color(0xFFF3F1FF),
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.grey.shade200),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 8,
-          offset: const Offset(0, 3),
-        ),
-      ],
+      border: Border.all(
+        color: const Color(0xFF6C63FF).withOpacity(0.12),
+      ),
     ),
     child: Row(
       children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: selectedProductContext!.image.isNotEmpty
+              ? Image.network(
+                  'https://paishop-api.onrender.com/image-proxy?url=${Uri.encodeComponent(selectedProductContext!.image)}',
+                  width: 38,
+                  height: 38,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 38,
+                    height: 38,
+                    color: Colors.white,
+                    child: const Icon(
+                      Icons.image_not_supported_outlined,
+                      size: 18,
+                    ),
+                  ),
+                )
+              : Container(
+                  width: 38,
+                  height: 38,
+                  color: Colors.white,
+                  child: const Icon(
+                    Icons.shopping_bag_outlined,
+                    size: 18,
+                  ),
+                ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1297,17 +1491,18 @@ if (selectedProductContext != null)
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: Colors.grey,
+                  color: Color(0xFF6C63FF),
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 selectedProductContext!.name,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
+                  color: Colors.black87,
                 ),
               ),
             ],
@@ -1319,7 +1514,7 @@ if (selectedProductContext != null)
               selectedProductContext = null;
             });
           },
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(Icons.close_rounded, size: 18),
         ),
       ],
     ),

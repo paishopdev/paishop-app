@@ -147,7 +147,7 @@ const addMessageToChat = async (req, res) => {
 const sendChatMessage = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const { message } = req.body;
+    const { message, selectedProduct } = req.body;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Mesaj zorunlu' });
@@ -172,6 +172,7 @@ const sendChatMessage = async (req, res) => {
     const aiResult = await generateChatReply({
       userMessage: userText,
       previousMessages: chat.messages,
+      selectedProduct,
     });
 
     const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
@@ -186,6 +187,7 @@ const sendChatMessage = async (req, res) => {
       products: safeProducts,
       actions: safeActions,
       comparison: safeComparison,
+      detailCard: aiResult.detailCard || null,
     });
 
     await chat.save();
@@ -195,6 +197,7 @@ const sendChatMessage = async (req, res) => {
       products: safeProducts,
       actions: safeActions,
       comparison: safeComparison,
+      detailCard: aiResult.detailCard || null,
       chat,
     });
   } catch (error) {

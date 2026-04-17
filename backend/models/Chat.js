@@ -45,6 +45,20 @@ const messageSchema = new mongoose.Schema(
       },
       default: null,
     },
+    detailCard: {
+      type: {
+        product: {
+          name: String,
+          price: String,
+          platform: String,
+          image: String,
+          link: String,
+        },
+        title: String,
+        bullets: [String],
+      },
+      default: null,
+    },
   },
   { _id: false }
 );

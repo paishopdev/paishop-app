@@ -183,167 +183,203 @@ final imageHeight = isSmallPhone ? 180.0 : (isTablet ? 240.0 : 210.0);
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      height: 1.35,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black87,
-                    ),
+  Text(
+    product.name,
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    style: const TextStyle(
+      fontSize: 16,
+      height: 1.35,
+      fontWeight: FontWeight.w700,
+      color: Colors.black87,
+    ),
+  ),
+
+  const SizedBox(height: 10),
+
+  Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (product.price.isNotEmpty)
+              Text(
+                product.price,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF6C63FF),
+                ),
+              ),
+            if (product.platform.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                product.platform,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      const SizedBox(width: 10),
+      OutlinedButton.icon(
+        onPressed: onAskAboutProduct,
+        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+        label: const Text("Sor"),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF6C63FF),
+          side: BorderSide(
+            color: const Color(0xFF6C63FF).withOpacity(0.22),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    ],
+  ),
+
+  if (product.rating != null || product.reviews != null) ...[
+    const SizedBox(height: 10),
+    Wrap(
+      spacing: 10,
+      runSpacing: 8,
+      children: [
+        if (product.rating != null)
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.star_rounded,
+                  size: 16,
+                  color: Colors.orange,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  product.rating!.toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
                   ),
-                  const SizedBox(height: 10),
-                SizedBox(
-  width: double.infinity,
-  child: OutlinedButton.icon(
-    onPressed: onAskAboutProduct,
-    icon: const Icon(Icons.chat_bubble_outline_rounded),
-    label: const Text("Ürün hakkında sor"),
-    style: OutlinedButton.styleFrom(
-      foregroundColor: const Color(0xFF6C63FF),
-      side: BorderSide(
-        color: const Color(0xFF6C63FF).withOpacity(0.22),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      shape: RoundedRectangleBorder(
+                ),
+              ],
+            ),
+          ),
+        if (product.reviews != null)
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              "${formatReviewCount(product.reviews)} yorum",
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+      ],
+    ),
+  ],
+
+  if (product.shortReason.isNotEmpty) ...[
+    const SizedBox(height: 14),
+    Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F1FF),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF6C63FF).withOpacity(0.12),
+        ),
       ),
-      textStyle: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(
+                Icons.auto_awesome_rounded,
+                size: 18,
+                color: Color(0xFF6C63FF),
+              ),
+              SizedBox(width: 6),
+              Text(
+                "AI Önerisi",
+                style: TextStyle(
+                  color: Color(0xFF6C63FF),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            product.shortReason,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    ),
+  ],
+
+  const SizedBox(height: 14),
+
+  SizedBox(
+    width: double.infinity,
+    child: ElevatedButton.icon(
+      onPressed: () => _openLink(context),
+      icon: const Icon(Icons.shopping_bag_outlined),
+      label: const Text("Ürüne Git"),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF6C63FF),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        textStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     ),
   ),
-),
-                  if (product.rating != null || product.reviews != null) ...[
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: [
-                        if (product.rating != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.shade50,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.star_rounded,
-                                  size: 16,
-                                  color: Colors.orange,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  product.rating!.toString(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (product.reviews != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Text(
-                             "${formatReviewCount(product.reviews)} yorum",
-                              style: TextStyle(
-                                color: Colors.grey.shade700,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                  if (product.shortReason.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F1FF),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: const Color(0xFF6C63FF).withOpacity(0.12),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: const [
-                              Icon(
-                                Icons.auto_awesome_rounded,
-                                size: 18,
-                                color: Color(0xFF6C63FF),
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                "AI Önerisi",
-                                style: TextStyle(
-                                  color: Color(0xFF6C63FF),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            product.shortReason,
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontSize: 13,
-                              height: 1.4,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openLink(context),
-                      icon: const Icon(Icons.shopping_bag_outlined),
-                      label: const Text("Ürüne Git"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6C63FF),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+],
               ),
             ),
           ],
