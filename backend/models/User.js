@@ -28,6 +28,34 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+
+    // 🔥 PROFİL BİLGİLERİ
+    shoeSize: {
+      type: String,
+      default: '',
+    },
+    clothingSize: {
+      type: String,
+      default: '',
+    },
+    height: {
+      type: String,
+      default: '',
+    },
+    weight: {
+      type: String,
+      default: '',
+    },
+    style: {
+      type: String,
+      default: '',
+    },
+
+    // 🔥 ONBOARDING DURUMU
+    onboardingCompleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

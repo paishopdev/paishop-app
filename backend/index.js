@@ -8,6 +8,9 @@ const favoriteRoutes = require('./routes/favorite');
 
 const recommendationRoutes = require('./routes/recommendations');
 const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/userRoutes');
+
+app.use('/api/users', userRoutes);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
