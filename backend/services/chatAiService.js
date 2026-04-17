@@ -1161,12 +1161,12 @@ async function generateChatReply({
 }) {
   if (selectedProduct) {
     console.log("DETAIL FLOW ACTIVE FOR:", selectedProduct.name);
-
+  
     const detailResult = await generateSelectedProductDetail({
       selectedProduct,
       userMessage,
     });
-
+  
     return {
       assistantText: 'Ürün detayını hazırladım.',
       products: [],
@@ -1182,7 +1182,7 @@ async function generateChatReply({
         },
         title: detailResult.title || 'Ürün detayı',
         bullets: Array.isArray(detailResult.bullets)
-          ? detailResult.bullets.map((e) => String(e)).slice(0, 4)
+          ? detailResult.bullets.slice(0, 4)
           : [],
       },
     };
@@ -1659,23 +1659,13 @@ Kullanıcı seçtiği TEK bir ürün hakkında soru soruyor.
 Sadece bu ürüne odaklan.
 Uzun paragraf yazma.
 En fazla 4 kısa madde yaz.
-Her madde tek satıra yakın kısa olsun.
+Her madde kısa olsun.
 Başka ürün önerme.
 Ürün listesi oluşturma.
 Sadece kullanıcının sorduğu şeye cevap ver.
 
-Eğer soru ürünle ilgiliyse:
-- özellik
-- yorum
-- kullanım
-- kimler için uygun
-- artı/eksi
-- mağaza/fiyat farkı
-
-gibi başlıklarda kısa maddeler üret.
-
-Eğer soru ürünle alakasızsa:
-- kibarca bu seçili ürün hakkında yardımcı olabileceğini söyle.
+Eğer soru ürünle ilgiliyse kısa maddeler üret.
+Eğer soru ürünle alakasızsa bunu kibarca belirt.
 
 Ürün:
 ${JSON.stringify(selectedProduct, null, 2)}
@@ -1699,21 +1689,29 @@ JSON formatı:
   const response = await client.chat.completions.create({
     model: 'gpt-4.1-mini',
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.4,
+    temperature: 0.3,
   });
 
   const text = response.choices[0].message.content;
   const parsed = safeParseJson(text);
 
+  const safeBullets = Array.isArray(parsed?.bullets)
+    ? parsed.bullets
+        .map((e) => String(e).trim())
+        .filter((e) => e.length > 0)
+        .slice(0, 4)
+    : [];
+
   return {
-  title:
-    typeof parsed?.title === 'string' && parsed.title.trim().length > 0
-      ? parsed.title.trim()
-      : 'Ürün detayı',
-  bullets: bullets.length > 0
-    ? bullets
-    : ['Bu ürün hakkında şu an kısa bilgi verebildim.'],
-};
+    title:
+      typeof parsed?.title === 'string' && parsed.title.trim().length > 0
+        ? parsed.title.trim()
+        : 'Ürün detayı',
+    bullets:
+      safeBullets.length > 0
+        ? safeBullets
+        : ['Bu ürün hakkında şu an kısa bilgi verebildim.'],
+  };
 }
 
 module.exports = {
