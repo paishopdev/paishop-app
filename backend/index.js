@@ -10,10 +10,12 @@ const recommendationRoutes = require('./routes/recommendations');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/userRoutes');
 
-app.use('/api/users', userRoutes);
+
 
 const app = express();
+app.use('/api/users', userRoutes);
 const PORT = process.env.PORT || 3000;
+
 
 mongoose
   .connect(process.env.MONGO_URI)
