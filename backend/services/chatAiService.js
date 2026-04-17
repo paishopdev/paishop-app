@@ -1828,18 +1828,31 @@ async function generateSelectedProductDetail({ selectedProduct, userMessage }) {
   const prompt = `
 Sen Shopi'sin.
 Kullanıcı seçtiği TEK bir ürün hakkında soru soruyor.
+Sadece bu ürüne odaklan.
 Uzun paragraf yazma.
-Sadece kısa ve net cevap ver.
-En fazla 4 madde yaz.
-Her madde kısa olsun.
-Ürünleri tekrar listeleme.
+En fazla 4 kısa madde yaz.
+Her madde tek satıra yakın kısa olsun.
 Başka ürün önerme.
-Sadece seçilen ürüne odaklan.
+Ürün listesi oluşturma.
+Sadece kullanıcının sorduğu şeye cevap ver.
+
+Eğer soru ürünle ilgiliyse:
+- özellik
+- yorum
+- kullanım
+- kimler için uygun
+- artı/eksi
+- mağaza/fiyat farkı
+
+gibi başlıklarda kısa maddeler üret.
+
+Eğer soru ürünle alakasızsa:
+- kibarca bu seçili ürün hakkında yardımcı olabileceğini söyle.
 
 Ürün:
 ${JSON.stringify(selectedProduct, null, 2)}
 
-Kullanıcının sorusu:
+Kullanıcı sorusu:
 ${userMessage}
 
 Sadece geçerli JSON döndür.
@@ -1858,7 +1871,7 @@ JSON formatı:
   const response = await client.chat.completions.create({
     model: 'gpt-4.1-mini',
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.5,
+    temperature: 0.4,
   });
 
   const text = response.choices[0].message.content;

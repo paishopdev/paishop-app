@@ -149,6 +149,9 @@ const sendChatMessage = async (req, res) => {
     const { chatId } = req.params;
     const { message, selectedProduct } = req.body;
 
+    console.log("REQ.BODY MESSAGE:", message);
+    console.log("REQ.BODY SELECTED PRODUCT:", selectedProduct);
+
     if (!message || !message.trim()) {
       return res.status(400).json({ error: 'Mesaj zorunlu' });
     }
@@ -167,6 +170,13 @@ const sendChatMessage = async (req, res) => {
       products: [],
       actions: [],
       comparison: null,
+      detailCard: null,
+      contextProduct: selectedProduct
+        ? {
+            name: selectedProduct.name || '',
+            image: selectedProduct.image || '',
+          }
+        : null,
     });
 
     const aiResult = await generateChatReply({
@@ -176,10 +186,13 @@ const sendChatMessage = async (req, res) => {
     });
 
     const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
-    console.log('normalizeActions typeof =', typeof normalizeActions);
     const safeActions = normalizeActions(aiResult.actions);
     const safeComparison = aiResult.comparison || null;
     const safeAssistantText = aiResult.assistantText || '';
+    const safeDetailCard = aiResult.detailCard || null;
+
+    console.log('normalizeActions typeof =', typeof normalizeActions);
+    console.log("SELECTED PRODUCT:", selectedProduct);
 
     chat.messages.push({
       role: 'assistant',
@@ -187,7 +200,8 @@ const sendChatMessage = async (req, res) => {
       products: safeProducts,
       actions: safeActions,
       comparison: safeComparison,
-      detailCard: aiResult.detailCard || null,
+      detailCard: safeDetailCard,
+      contextProduct: null,
     });
 
     await chat.save();
@@ -197,7 +211,7 @@ const sendChatMessage = async (req, res) => {
       products: safeProducts,
       actions: safeActions,
       comparison: safeComparison,
-      detailCard: aiResult.detailCard || null,
+      detailCard: safeDetailCard,
       chat,
     });
   } catch (error) {

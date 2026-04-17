@@ -59,6 +59,13 @@ const messageSchema = new mongoose.Schema(
       },
       default: null,
     },
+    contextProduct: {
+      type: {
+        name: String,
+        image: String,
+      },
+      default: null,
+    },
   },
   { _id: false }
 );

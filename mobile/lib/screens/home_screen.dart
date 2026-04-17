@@ -20,9 +20,9 @@ class ChatMessage {
   final List<Product> products;
   final List<String> actions;
   final Map<String, dynamic>? comparison;
+  final Map<String, dynamic>? detailCard;
   final String? contextTitle;
   final String? contextImage;
-  final Map<String, dynamic>? detailCard;
 
   ChatMessage({
     required this.text,
@@ -30,9 +30,9 @@ class ChatMessage {
     this.products = const [],
     this.actions = const [],
     this.comparison,
+    this.detailCard,
     this.contextTitle,
     this.contextImage,
-    this.detailCard,
   });
 }
 
@@ -73,6 +73,11 @@ final Color userBubbleColor = const Color(0xFF6C63FF);
   "Gaming mouse öner",
   "Benzer ürünler göster",
 ];
+
+String shortenContextTitle(String text) {
+  if (text.trim().length <= 28) return text.trim();
+  return "${text.trim().substring(0, 28)}...";
+}
 
   Future<void> loadFavorites() async {
   if (userId.isEmpty) return;
@@ -298,29 +303,38 @@ Widget buildDrawerAvatar() {
       final List<dynamic> dbMessages = chat["messages"] ?? [];
 
       final loadedMessages = dbMessages.map((m) {
-        final productsJson = m["products"] is List ? m["products"] as List : [];
-final products = productsJson
-    .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
-    .toList();
+  final productsJson = m["products"] is List ? m["products"] as List : [];
+  final products = productsJson
+      .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
+      .toList();
 
-final actions = m["actions"] is List
-    ? List<String>.from(m["actions"])
-    : <String>[];
+  final actions = m["actions"] is List
+      ? List<String>.from(m["actions"])
+      : <String>[];
 
-final comparison = m["comparison"] != null
-    ? Map<String, dynamic>.from(m["comparison"])
-    : null;
+  final comparison = m["comparison"] != null
+      ? Map<String, dynamic>.from(m["comparison"])
+      : null;
 
-    
+  final detailCard = m["detailCard"] != null
+      ? Map<String, dynamic>.from(m["detailCard"])
+      : null;
 
-return ChatMessage(
-  text: m["text"] ?? '',
-  isUser: (m["role"] ?? '') == 'user',
-  products: products.cast<Product>(),
-  actions: actions,
-  comparison: comparison,
-);
-      }).toList();
+  return ChatMessage(
+    text: m["text"] ?? '',
+    isUser: (m["role"] ?? '') == 'user',
+    products: products.cast<Product>(),
+    actions: actions,
+    comparison: comparison,
+    detailCard: detailCard,
+    contextTitle: m["contextProduct"]?["name"],
+    contextImage: m["contextProduct"]?["image"],
+  );
+}).toList();
+
+setState(() {
+  messages = loadedMessages;
+});
 
       setState(() {
         currentChatId = chat["_id"] ?? '';
@@ -371,6 +385,10 @@ setState(() {
   scrollToBottom();
 
   await createNewChatIfNeeded(query);
+
+
+  debugPrint("SELECTED FRONTEND PRODUCT: ${selectedProductContext?.name}");
+debugPrint("QUESTION TO SEND: $query");
 
   try {
     final result = await ChatService.sendMessage(
@@ -425,6 +443,8 @@ setState(() {
 
       selectedProductContext = null;
     });
+
+    
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!scrollController.hasClients) return;
@@ -557,70 +577,67 @@ Future<void> sendQuickAction(String action) async {
 }
 
 
-  Widget buildMessageBubble(ChatMessage message) {
+Widget buildMessageBubble(ChatMessage message) {
   final isUser = message.isUser;
 
-  return Align(
-    alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-    child: Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.82,
+  Widget bubble = Container(
+    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    constraints: BoxConstraints(
+      maxWidth: MediaQuery.of(context).size.width * 0.82,
+    ),
+    decoration: BoxDecoration(
+      color: isUser ? userBubbleColor : assistantBubbleColor,
+      borderRadius: BorderRadius.only(
+        topLeft: const Radius.circular(20),
+        topRight: const Radius.circular(20),
+        bottomLeft: Radius.circular(isUser ? 20 : 8),
+        bottomRight: Radius.circular(isUser ? 8 : 20),
       ),
-      decoration: BoxDecoration(
-        color: isUser ? userBubbleColor : assistantBubbleColor,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(20),
-          topRight: const Radius.circular(20),
-          bottomLeft: Radius.circular(isUser ? 20 : 8),
-          bottomRight: Radius.circular(isUser ? 8 : 20),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-        border: isUser
-            ? null
-            : Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!isUser)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 14,
-                      color: primaryColor,
-                    ),
+      ],
+      border: isUser ? null : Border.all(color: Colors.grey.shade200),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isUser)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.12),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    "Shopi",
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 14,
+                    color: primaryColor,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "Shopi",
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
+          ),
+        if (message.text.trim().isNotEmpty)
           Text(
             message.text,
             style: TextStyle(
@@ -630,9 +647,13 @@ Future<void> sendQuickAction(String action) async {
               fontWeight: FontWeight.w400,
             ),
           ),
-        ],
-      ),
+      ],
     ),
+  );
+
+  return Align(
+    alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+    child: bubble,
   );
 }
 
@@ -986,93 +1007,88 @@ Widget buildDetailCard(Map<String, dynamic> detailCard) {
   );
 }
 
- Widget buildChatItem(ChatMessage message) {
+Widget buildChatItem(ChatMessage message) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      if (message.isUser &&
+          message.contextTitle != null &&
+          message.contextTitle!.trim().isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(left: 12, right: 12, top: 4, bottom: 2),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.subdirectory_arrow_right_rounded,
+                  size: 16,
+                  color: Colors.grey,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    message.contextTitle!.length > 28
+                        ? "${message.contextTitle!.substring(0, 28)}..."
+                        : message.contextTitle!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
       buildMessageBubble(message),
 
-      if (message.isUser && message.contextTitle != null)
-  Container(
-    margin: const EdgeInsets.only(bottom: 6),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          Icons.subdirectory_arrow_right_rounded,
-          size: 16,
-          color: Colors.grey,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            message.contextTitle!,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    ),
-  ),
-
-      if (!message.isUser && message.products.isNotEmpty)
+      if (!message.isUser && message.detailCard != null)
+        buildDetailCard(message.detailCard!)
+      else if (!message.isUser && message.products.isNotEmpty)
         buildProducts(message.products),
-        
 
-        if (!message.isUser && message.comparison != null)
-  buildComparisonBox(message.comparison!),
+      if (!message.isUser && message.comparison != null)
+        buildComparisonBox(message.comparison!),
 
-  if (message.detailCard != null) buildDetailCard(message.detailCard!),
-  
-
-      if (!message.isUser &&
-          message.actions != null &&
-          message.actions!.isNotEmpty)
+      if (!message.isUser && message.actions.isNotEmpty)
         Padding(
-  padding: const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 10),
-  child: Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: message.actions!.map((action) {
-      return InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: loading
-            ? null
-            : () {
-                controller.text = action;
-                search();
-              },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: primaryColor.withOpacity(0.18)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Text(
-            action,
-            style: TextStyle(
-              color: primaryColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
+          padding: const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 10),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: message.actions.map((action) {
+              return InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: loading
+                    ? null
+                    : () {
+                        controller.text = action;
+                        search();
+                      },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.18)),
+                  ),
+                  child: Text(
+                    action,
+                    style: const TextStyle(
+                      color: Color(0xFF6C63FF),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ),
-      );
-    }).toList(),
-  ),
-),
     ],
   );
 }
