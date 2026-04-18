@@ -12,6 +12,7 @@ import '../utils/app_notice.dart';
 import 'dart:io';
 import 'account_screen.dart';
 import '../services/profile_service.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 
 class ChatMessage {
@@ -50,6 +51,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final ScrollController scrollController = ScrollController();
   Product? selectedProductContext;
   final FocusNode inputFocusNode = FocusNode();
+
+  late stt.SpeechToText speech;
+bool isListening = false;
 
   List<ChatMessage> messages = [];
   List<ChatItem> chatHistory = [];
@@ -166,21 +170,65 @@ void askAboutProduct(Product product) {
   });
 }
 
+Future<void> startListening() async {
+  final available = await speech.initialize(
+    onStatus: (status) {
+      if (status == 'done' || status == 'notListening') {
+        setState(() {
+          isListening = false;
+        });
+      }
+    },
+    onError: (error) {
+      debugPrint("Speech error: $error");
+      setState(() {
+        isListening = false;
+      });
+    },
+  );
+
+  if (!available) return;
+
+  setState(() {
+    isListening = true;
+  });
+
+  speech.listen(
+    localeId: 'tr_TR',
+    onResult: (result) {
+      setState(() {
+        controller.text = result.recognizedWords;
+        controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: controller.text.length),
+        );
+      });
+    },
+  );
+}
+
+void stopListening() {
+  speech.stop();
+  setState(() {
+    isListening = false;
+  });
+}
+
 @override
 void dispose() {
+  speech.stop();
   controller.dispose();
-  scrollController.dispose(); 
+  scrollController.dispose();
   inputFocusNode.dispose();
   super.dispose();
 }
 
 
   @override
-  void initState() {
-    super.initState();
-    initUserAndChats();
-    
-  }
+void initState() {
+  super.initState();
+  speech = stt.SpeechToText();
+  initUserAndChats();
+}
 
   Future<void> loadProfileCard() async {
   final name = await ProfileService.getDisplayName(
@@ -1693,8 +1741,10 @@ if (selectedProductContext != null)
               minLines: 1,
               maxLines: 4,
               onSubmitted: (_) => search(),
-              decoration: const InputDecoration(
-                hintText: "Bir ürün, bütçe veya özellik yaz...",
+              decoration: InputDecoration(
+                hintText: isListening
+    ? "Dinleniyor..."
+    : "Bir ürün, bütçe veya özellik yaz...",
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 16,
@@ -1704,6 +1754,36 @@ if (selectedProductContext != null)
             ),
           ),
         ),
+        Container(
+  margin: const EdgeInsets.only(right: 10),
+  decoration: BoxDecoration(
+    color: isListening ? Colors.redAccent : Colors.white,
+    shape: BoxShape.circle,
+    border: Border.all(
+      color: isListening ? Colors.redAccent : Colors.grey.shade300,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.04),
+        blurRadius: 8,
+        offset: const Offset(0, 3),
+      ),
+    ],
+  ),
+  child: IconButton(
+    onPressed: () {
+      if (isListening) {
+        stopListening();
+      } else {
+        startListening();
+      }
+    },
+    icon: Icon(
+      isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+      color: isListening ? Colors.white : Colors.grey.shade700,
+    ),
+  ),
+),
         const SizedBox(width: 10),
         Container(
           decoration: BoxDecoration(
