@@ -21,6 +21,7 @@ class ChatMessage {
   final List<String> actions;
   final Map<String, dynamic>? comparison;
   final Map<String, dynamic>? detailCard;
+  final Map<String, dynamic>? reviewCard;
   final String? contextTitle;
   final String? contextImage;
 
@@ -31,6 +32,7 @@ class ChatMessage {
     this.actions = const [],
     this.comparison,
     this.detailCard,
+    this.reviewCard,
     this.contextTitle,
     this.contextImage,
   });
@@ -320,6 +322,10 @@ Widget buildDrawerAvatar() {
       ? Map<String, dynamic>.from(m["detailCard"])
       : null;
 
+      final reviewCard = m["reviewCard"] != null
+    ? Map<String, dynamic>.from(m["reviewCard"])
+    : null;
+
   return ChatMessage(
     text: m["text"] ?? '',
     isUser: (m["role"] ?? '') == 'user',
@@ -327,6 +333,7 @@ Widget buildDrawerAvatar() {
     actions: actions,
     comparison: comparison,
     detailCard: detailCard,
+    reviewCard: reviewCard,
     contextTitle: m["contextProduct"]?["name"],
     contextImage: m["contextProduct"]?["image"],
   );
@@ -415,6 +422,10 @@ Future<void> search() async {
         ? Map<String, dynamic>.from(result["detailCard"])
         : null;
 
+        final reviewCard = result["reviewCard"] != null
+    ? Map<String, dynamic>.from(result["reviewCard"])
+    : null;
+
     debugPrint("ACTIONS FROM BACKEND: $actions");
     debugPrint("FULL RESULT: $result");
     debugPrint("COMPARISON FROM BACKEND: ${result["comparison"]}");
@@ -433,6 +444,7 @@ Future<void> search() async {
           actions: actions,
           comparison: comparison,
           detailCard: detailCard,
+          reviewCard: reviewCard,
         ),
       );
 
@@ -443,9 +455,10 @@ Future<void> search() async {
       if (!scrollController.hasClients) return;
 
       final hasRichContent = products.isNotEmpty ||
-          comparison != null ||
-          actions.isNotEmpty ||
-          detailCard != null;
+    comparison != null ||
+    actions.isNotEmpty ||
+    detailCard != null ||
+    reviewCard != null;
 
       if (hasRichContent) {
         scrollController.animateTo(
@@ -1002,6 +1015,121 @@ Widget buildDetailCard(Map<String, dynamic> detailCard) {
   );
 }
 
+Widget buildReviewCard(Map<String, dynamic> reviewCard) {
+  final product = reviewCard["product"] != null
+      ? Map<String, dynamic>.from(reviewCard["product"])
+      : <String, dynamic>{};
+
+  final items = reviewCard["items"] is List
+      ? List<String>.from(reviewCard["items"])
+      : <String>[];
+
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: Colors.grey.shade200),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: product["image"] != null &&
+                      product["image"].toString().isNotEmpty
+                  ? Image.network(
+                      'https://paishop-api.onrender.com/image-proxy?url=${Uri.encodeComponent(product["image"].toString())}',
+                      width: 64,
+                      height: 64,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 64,
+                        height: 64,
+                        color: Colors.grey.shade100,
+                        child: const Icon(Icons.image_not_supported_outlined),
+                      ),
+                    )
+                  : Container(
+                      width: 64,
+                      height: 64,
+                      color: Colors.grey.shade100,
+                      child: const Icon(Icons.shopping_bag_outlined),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product["name"]?.toString() ?? "",
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if ((product["price"] ?? "").toString().isNotEmpty)
+                    Text(
+                      product["price"].toString(),
+                      style: const TextStyle(
+                        color: Color(0xFF6C63FF),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (items.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          ...items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 16,
+                    color: Color(0xFF6C63FF),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
 Widget buildChatItem(ChatMessage message) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1042,10 +1170,12 @@ Widget buildChatItem(ChatMessage message) {
 
       buildMessageBubble(message),
 
-      if (!message.isUser && message.detailCard != null)
-        buildDetailCard(message.detailCard!)
-      else if (!message.isUser && message.products.isNotEmpty)
-        buildProducts(message.products),
+      if (!message.isUser && message.reviewCard != null)
+  buildReviewCard(message.reviewCard!)
+else if (!message.isUser && message.detailCard != null)
+  buildDetailCard(message.detailCard!)
+else if (!message.isUser && message.products.isNotEmpty)
+  buildProducts(message.products),
 
       if (!message.isUser && message.comparison != null)
         buildComparisonBox(message.comparison!),
@@ -1202,6 +1332,8 @@ Widget buildDrawer() {
                           "Favoriler",
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
+                        
+                        
                         trailing: const Icon(Icons.chevron_right_rounded),
                         onTap: () {
                           Navigator.pop(context);

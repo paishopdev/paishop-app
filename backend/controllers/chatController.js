@@ -205,6 +205,7 @@ const aiResult = await generateChatReply({
     ? aiResult.assistantText.trim()
     : (aiResult.detailCard ? 'Ürün detayını hazırladım.' : 'Sana yardımcı olmaya çalışıyorum.');
     const safeDetailCard = aiResult.detailCard || null;
+    const safeReviewCard = aiResult.reviewCard || null;
 
     console.log('normalizeActions typeof =', typeof normalizeActions);
     console.log("SELECTED PRODUCT:", selectedProduct);
@@ -216,6 +217,7 @@ const aiResult = await generateChatReply({
       actions: Array.isArray(safeActions) ? safeActions : [],
       comparison: safeComparison || null,
       detailCard: safeDetailCard || null,
+      reviewCard: safeReviewCard || null,
       contextProduct: null,
     });
 
@@ -227,6 +229,7 @@ const aiResult = await generateChatReply({
       actions: safeActions,
       comparison: safeComparison,
       detailCard: safeDetailCard,
+      reviewCard: safeReviewCard,
       chat,
     });
   } catch (error) {

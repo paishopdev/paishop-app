@@ -59,6 +59,20 @@ const messageSchema = new mongoose.Schema(
       },
       default: null,
     },
+    reviewCard: {
+      type: {
+        title: String,
+        items: [String],
+        product: {
+          name: String,
+          price: String,
+          platform: String,
+          image: String,
+          link: String,
+        },
+      },
+      default: null,
+    },
     contextProduct: {
       type: {
         name: String,

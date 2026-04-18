@@ -1251,18 +1251,48 @@ async function generateChatReply({
 {
   if (selectedProduct) {
     console.log("DETAIL FLOW ACTIVE FOR:", selectedProduct.name);
-
+  
+    if (isReviewRequest(userMessage)) {
+      const reviewResult = await generateSelectedProductReviews({
+        selectedProduct,
+        userMessage,
+        userProfile,
+      });
+  
+      return {
+        assistantText: 'Yorum özetini hazırladım.',
+        products: [],
+        actions: [],
+        comparison: null,
+        detailCard: null,
+        reviewCard: {
+          product: {
+            name: selectedProduct.name || '',
+            price: selectedProduct.price || '',
+            platform: selectedProduct.platform || '',
+            image: selectedProduct.image || '',
+            link: selectedProduct.link || '',
+          },
+          title: reviewResult.title || 'Yorum özeti',
+          items: Array.isArray(reviewResult.items)
+            ? reviewResult.items.slice(0, 5)
+            : [],
+        },
+      };
+    }
+  
     const detailResult = await generateSelectedProductDetail({
       selectedProduct,
       userMessage,
       userProfile,
     });
-
+  
     return {
       assistantText: 'Ürün detayını hazırladım.',
       products: [],
       actions: [],
       comparison: null,
+      reviewCard: null,
       detailCard: {
         product: {
           name: selectedProduct.name || '',
@@ -1726,6 +1756,20 @@ function isSmallTalkMessage(userMessage = '') {
 
   return patterns.some((p) => text.includes(p));
 }
+
+function isReviewRequest(userMessage = '') {
+  const text = normalizeText(userMessage);
+
+  return (
+    text.includes('yorum') ||
+    text.includes('yorumlari nasil') ||
+    text.includes('kullanici yorum') ||
+    text.includes('inceleme') ||
+    text.includes('degerlendirme') ||
+    text.includes('memnun') ||
+    text.includes('begenilmis')
+  );
+}
 async function generateSmallTalkReply(userMessage, previousMessages = []) {
   console.log('SMALL TALK DYNAMIC HIT:', userMessage);
 
@@ -1777,6 +1821,71 @@ Kurallar:
   });
 
   return response.choices[0].message.content.trim();
+}
+
+async function generateSelectedProductReviews({ selectedProduct, userMessage, userProfile = null }) {
+  const profileText = formatUserProfile(userProfile);
+
+  const prompt = `
+Sen Shopi'sin.
+Kullanıcı seçtiği ürün için yorumları soruyor.
+
+Kurallar:
+- Uzun paragraf yazma.
+- Yalnızca geçerli JSON döndür.
+- En fazla 5 kısa yorum maddesi üret.
+- Maddeler kısa ve okunabilir olsun.
+- Şu başlık mantığını kullan:
+  - Genel yorum
+  - Beğenilenler
+  - Dikkat edilmesi gerekenler
+- Dengeli yaz, abartma.
+- Ürün dışına çıkma.
+- Markdown kullanma.
+
+Ürün:
+${JSON.stringify(selectedProduct, null, 2)}
+
+Kullanıcı profili:
+${profileText}
+
+Kullanıcı mesajı:
+${userMessage}
+
+JSON formatı:
+{
+  "title": "Yorum özeti",
+  "items": [
+    "Genel yorum: ...",
+    "Beğenilenler: ...",
+    "Dikkat edilmesi gerekenler: ..."
+  ]
+}
+`;
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.4,
+  });
+
+  const text = response.choices[0].message.content;
+  const parsed = safeParseJson(text);
+
+  const items = Array.isArray(parsed?.items)
+    ? parsed.items.map((e) => String(e).trim()).filter(Boolean).slice(0, 5)
+    : [];
+
+  return {
+    title:
+      typeof parsed?.title === 'string' && parsed.title.trim().length > 0
+        ? parsed.title.trim()
+        : 'Yorum özeti',
+    items:
+      items.length > 0
+        ? items
+        : ['Genel yorum: Bu ürün için kısa bir değerlendirme hazırladım.'],
+  };
 }
 
 async function generateSelectedProductDetail({ selectedProduct, userMessage, userProfile = null }) {
