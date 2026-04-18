@@ -1,4 +1,5 @@
 const Chat = require('../models/Chat');
+const User = require('../models/User');
 const {
   generateChatReply,
   generateChatTitle,
@@ -179,11 +180,22 @@ const sendChatMessage = async (req, res) => {
         : null,
     });
 
-    const aiResult = await generateChatReply({
-      userMessage: userText,
-      previousMessages: chat.messages,
-      selectedProduct,
-    });
+    let userProfile = null;
+
+try {
+  userProfile = await User.findById(chat.userId).select(
+    'shoeSize clothingSize height weight style onboardingCompleted'
+  );
+} catch (e) {
+  console.error('User profile fetch error:', e.message);
+}
+
+const aiResult = await generateChatReply({
+  userMessage: userText,
+  previousMessages: chat.messages,
+  selectedProduct,
+  userProfile,
+});
 
     const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
     const safeActions = normalizeActions(aiResult.actions);

@@ -671,7 +671,8 @@ function formatHistory(previousMessages = []) {
     .join('\n');
 }
 
-async function generatePlanner({ userMessage, previousMessages = [] }) {
+async function generatePlanner({ userMessage, previousMessages = [], userProfile = null }) {
+  const profileText = formatUserProfile(userProfile);
   const historyText = formatHistory(previousMessages);
   const recentProducts = extractRecentProducts(previousMessages);
 
@@ -722,6 +723,9 @@ Kurallar:
 - Eğer önceki ürünleri kullanmak yeterliyse needs_product_search=false yap.
 - Eğer kullanıcı fiyat filtresi verdiyse ve bulunan ürünler bu aralığa tam uymuyorsa, bunu açıkça belirt.
 - Fiyat filtresine uymayan ürünleri önerme.
+- Eğer kullanıcı profili varsa niyeti ve ürün türünü buna göre daha iyi anlamaya çalış.
+- Ayakkabı, giyim, stil ve kombin isteklerinde kullanıcı profilini dikkate al.
+- Profil bilgisi varsa gereksiz tekrar yapma, bunu akıllı bir yardımcı sinyal olarak kullan.
 - Eğer uygun ürün yoksa products boş dizi olabilir ve bunu dürüstçe söyle.
 - Bu uygulama sadece alışveriş, ürün önerisi, ürün karşılaştırma, fiyat, özellik, marka, bütçe ve satın alma kararları için kullanılmaktadır.
 - Eğer kullanıcının sorusu alışverişle ilgili değilse intent'i "general_question" olarak işaretle.
@@ -758,6 +762,9 @@ ${historyText || 'Yok'}
 Önceki ürünler:
 ${JSON.stringify(recentProducts, null, 2)}
 
+Kullanıcı profili:
+${profileText}
+
 Kullanıcının son mesajı:
 ${userMessage}
 `;
@@ -784,7 +791,9 @@ async function generateAnswer({
   previousMessages = [],
   planner,
   searchedProducts = [],
+  userProfile = null,
 }) {
+  const profileText = formatUserProfile(userProfile);
   const historyText = formatHistory(previousMessages);
   const recentProducts = extractRecentProducts(previousMessages);
   const normalizedSearchedProducts = normalizeProducts(searchedProducts);
@@ -803,6 +812,12 @@ Kurallar:
 - Eğer ürün döndürüyorsan her ürün için mutlaka "short_reason" alanı üretmek zorundasın.
 - short_reason her ürün için farklı olsun.
 - short_reason doğal, spesifik ve kullanıcı isteğine uygun olsun.
+- Eğer kullanıcı profili varsa ürün önerirken bunu dikkate al.
+- Ayakkabı önerilerinde ayakkabı numarasını göz önünde bulundur.
+- Giyim ürünlerinde beden bilgisini dikkate al.
+- Stil / tarz bilgisi varsa önerileri buna göre kişiselleştir.
+- Boy ve kilo bilgisi varsa özellikle giyim ve stil önerilerinde bunu yardımcı sinyal olarak kullan.
+- Profil bilgisi varsa bunu kullanıcıya hissettirmeden doğal şekilde önerilere yansıt.
 - Klişe ifadeler kullanma.
 - "İyi bir seçenek", "öne çıkan ürün" gibi genel tekrarlar kullanma.
 - Her ürünün neden önerildiğini kısa ama özgün şekilde açıkla.
@@ -855,6 +870,9 @@ ${planner.needs_product_search}
 
 Sohbet geçmişi:
 ${historyText || 'Yok'}
+
+Kullanıcı profili:
+${profileText}
 
 Önceki ürünler:
 ${JSON.stringify(recentProducts, null, 2)}
@@ -1158,6 +1176,7 @@ async function generateChatReply({
   userMessage,
   previousMessages = [],
   selectedProduct = null,
+  userProfile = null,
 }) {
   if (selectedProduct) {
     console.log("DETAIL FLOW ACTIVE FOR:", selectedProduct.name);
@@ -1165,6 +1184,7 @@ async function generateChatReply({
     const detailResult = await generateSelectedProductDetail({
       selectedProduct,
       userMessage,
+      userProfile,
     });
   
     return {
@@ -1317,6 +1337,7 @@ async function generateChatReply({
   const planner = await generatePlanner({
     userMessage,
     previousMessages,
+    userProfile,
   });
 
   const text = String(userMessage).toLowerCase().trim();
@@ -1479,6 +1500,7 @@ async function generateChatReply({
     previousMessages,
     planner,
     searchedProducts,
+    userProfile,
   });
 
   if (isComparisonRequest && comparisonProducts.length >= 2) {
@@ -1652,7 +1674,8 @@ Kurallar:
   return response.choices[0].message.content.trim();
 }
 
-async function generateSelectedProductDetail({ selectedProduct, userMessage }) {
+async function generateSelectedProductDetail({ selectedProduct, userMessage, userProfile = null }) {
+  const profileText = formatUserProfile(userProfile);
   const prompt = `
 Sen Shopi'sin.
 Kullanıcı seçtiği TEK bir ürün hakkında soru soruyor.
@@ -1669,6 +1692,9 @@ Eğer soru ürünle alakasızsa bunu kibarca belirt.
 
 Ürün:
 ${JSON.stringify(selectedProduct, null, 2)}
+
+Kullanıcı profili:
+${profileText}
 
 Kullanıcı sorusu:
 ${userMessage}
@@ -1712,6 +1738,34 @@ JSON formatı:
         ? safeBullets
         : ['Bu ürün hakkında şu an kısa bilgi verebildim.'],
   };
+}
+
+function formatUserProfile(userProfile = null) {
+  if (!userProfile) return 'Kullanıcı profili yok.';
+
+  const parts = [];
+
+  if (userProfile.shoeSize) {
+    parts.push(`Ayakkabı numarası: ${userProfile.shoeSize}`);
+  }
+
+  if (userProfile.clothingSize) {
+    parts.push(`Beden: ${userProfile.clothingSize}`);
+  }
+
+  if (userProfile.height) {
+    parts.push(`Boy: ${userProfile.height}`);
+  }
+
+  if (userProfile.weight) {
+    parts.push(`Kilo: ${userProfile.weight}`);
+  }
+
+  if (userProfile.style) {
+    parts.push(`Tarz: ${userProfile.style}`);
+  }
+
+  return parts.length > 0 ? parts.join('\n') : 'Kullanıcı profili boş.';
 }
 
 module.exports = {
