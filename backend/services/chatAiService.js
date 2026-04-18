@@ -738,6 +738,7 @@ Kurallar:
 - Eğer kullanıcı önceki ürünlere atıf yapıyorsa bunu anlamaya çalış.
 - "bunlardan", "en iyisi", "2. ürün", "4. ürün", "en ucuz" gibi ifadeleri dikkate al.
 - Eğer yeni ürün aramak gerekiyorsa kısa bir arama sorgusu üret.
+- Cinsiyet bilgisi varsa özellikle giyim, ayakkabı ve aksesuar kategorilerinde bunu yardımcı sinyal olarak kullan.
 - Eğer önceki ürünleri kullanmak yeterliyse needs_product_search=false yap.
 - Eğer kullanıcı fiyat filtresi verdiyse ve bulunan ürünler bu aralığa tam uymuyorsa, bunu açıkça belirt.
 - Fiyat filtresine uymayan ürünleri önerme.
@@ -839,6 +840,9 @@ Kurallar:
 - short_reason her ürün için farklı olsun.
 - short_reason doğal, spesifik ve kullanıcı isteğine uygun olsun.
 - Eğer kullanıcı profili varsa ürün önerirken bunu dikkate al.
+- Cinsiyet bilgisi varsa özellikle giyim, ayakkabı, çanta, aksesuar ve parfüm önerilerinde bunu dikkate al.
+- Eğer cinsiyet bilgisi varsa alakasız kadın/erkek karışık ürünler gösterme.
+- Uygun olduğunda unisex seçenekler de sunabilirsin.
 - Ayakkabı önerilerinde ayakkabı numarasını göz önünde bulundur.
 - Giyim ürünlerinde beden bilgisini dikkate al.
 - Stil / tarz bilgisi varsa önerileri buna göre kişiselleştir.
@@ -1794,6 +1798,10 @@ function formatUserProfile(userProfile = null) {
   if (!userProfile) return 'Kullanıcı profili yok.';
 
   const parts = [];
+
+  if (userProfile.gender) {
+    parts.push(`Cinsiyet: ${userProfile.gender}`);
+  }
 
   if (userProfile.shoeSize) {
     parts.push(`Ayakkabı numarası: ${userProfile.shoeSize}`);

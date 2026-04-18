@@ -29,6 +29,7 @@ const updateUserProfile = async (req, res) => {
       height,
       weight,
       style,
+      gender,
       onboardingCompleted,
     } = req.body;
 
@@ -40,6 +41,7 @@ const updateUserProfile = async (req, res) => {
         height,
         weight,
         style,
+        gender,
         onboardingCompleted,
       },
       { new: true }

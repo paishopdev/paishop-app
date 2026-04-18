@@ -22,6 +22,7 @@ class UserProfileService {
 
  static Future<Map<String, dynamic>> updateUserProfile({
   required String userId,
+  String gender = '',
   String shoeSize = '',
   String clothingSize = '',
   String height = '',
@@ -34,6 +35,7 @@ class UserProfileService {
       Uri.parse("$baseUrl/$userId"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({
+        "gender": gender,
         "shoeSize": shoeSize,
         "clothingSize": clothingSize,
         "height": height,

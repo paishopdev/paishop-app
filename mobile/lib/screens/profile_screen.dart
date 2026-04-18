@@ -11,6 +11,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final genderController = TextEditingController();
   final shoeSizeController = TextEditingController();
   final clothingSizeController = TextEditingController();
   final heightController = TextEditingController();
@@ -40,6 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final profile = await UserProfileService.getUserProfile(userId);
 
+      genderController.text = (profile["gender"] ?? "").toString();
       shoeSizeController.text = (profile["shoeSize"] ?? "").toString();
       clothingSizeController.text = (profile["clothingSize"] ?? "").toString();
       heightController.text = (profile["height"] ?? "").toString();
@@ -77,6 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       await UserProfileService.updateUserProfile(
         userId: userId,
+        gender: genderController.text.trim(),
         shoeSize: shoeSizeController.text.trim(),
         clothingSize: clothingSizeController.text.trim(),
         height: heightController.text.trim(),
@@ -155,6 +158,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    genderController.dispose();
     shoeSizeController.dispose();
     clothingSizeController.dispose();
     heightController.dispose();
@@ -224,6 +228,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                buildInput(
+  controller: genderController,
+  label: "Cinsiyet",
+  hint: "Örn: Kadın, Erkek, Unisex",
+  icon: Icons.person_outline_rounded,
+  keyboardType: TextInputType.text,
+),
+const SizedBox(height: 16),
                 buildInput(
                   controller: shoeSizeController,
                   label: "Ayakkabı numarası",

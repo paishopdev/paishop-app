@@ -13,6 +13,7 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController pageController = PageController();
 
+  final genderController = TextEditingController();
   final shoeSizeController = TextEditingController();
   final clothingSizeController = TextEditingController();
   final heightController = TextEditingController();
@@ -26,6 +27,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final Color backgroundColor = const Color(0xFFF7F8FC);
 
   final List<Map<String, String>> steps = [
+    {
+  "title": "Sana daha uygun öneriler sunalım",
+  "subtitle":
+      "Cinsiyet bilgisi özellikle giyim, ayakkabı ve aksesuar önerilerinde daha doğru sonuçlar vermeme yardımcı olur.",
+  "hint": "Örn: Kadın, Erkek, Unisex",
+  "field": "gender",
+},
     {
       "title": "Seni daha iyi tanıyalım",
       "subtitle":
@@ -65,6 +73,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   TextEditingController getCurrentController() {
     switch (steps[currentPage]["field"]) {
+      case "gender":
+  return genderController;
       case "shoeSize":
         return shoeSizeController;
       case "clothingSize":
@@ -98,6 +108,7 @@ Future<void> finishOnboarding() async {
 
     final updatedProfile = await UserProfileService.updateUserProfile(
       userId: userId,
+      gender: genderController.text.trim(),
       shoeSize: shoeSizeController.text.trim(),
       clothingSize: clothingSizeController.text.trim(),
       height: heightController.text.trim(),
@@ -151,6 +162,7 @@ Future<void> skipOnboarding() async {
 
     final updatedProfile = await UserProfileService.updateUserProfile(
       userId: userId,
+      gender: '',
       shoeSize: '',
       clothingSize: '',
       height: '',
@@ -200,6 +212,7 @@ Future<void> skipOnboarding() async {
 
   @override
   void dispose() {
+    genderController.dispose();
     pageController.dispose();
     shoeSizeController.dispose();
     clothingSizeController.dispose();
