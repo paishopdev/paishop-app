@@ -289,6 +289,45 @@ function filterProductsByFeatures(products, userMessage) {
   });
 }
 
+function filterProductsByGender(products = [], userProfile = null) {
+  if (!userProfile || !userProfile.gender) return products;
+
+  const gender = normalizeText(userProfile.gender);
+
+  if (!gender) return products;
+
+  return (products || []).filter((product) => {
+    const text = normalizeText(
+      `${product.name || ''} ${product.short_reason || ''} ${product.platform || ''}`
+    );
+
+    const hasWomenTag =
+      text.includes('kadin') ||
+      text.includes('bayan') ||
+      text.includes('women') ||
+      text.includes('female');
+
+    const hasMenTag =
+      text.includes('erkek') ||
+      text.includes('men') ||
+      text.includes('male');
+
+    const hasUnisexTag = text.includes('unisex');
+
+    if (gender.includes('erkek')) {
+      if (hasWomenTag && !hasUnisexTag) return false;
+      return true;
+    }
+
+    if (gender.includes('kadin')) {
+      if (hasMenTag && !hasUnisexTag) return false;
+      return true;
+    }
+
+    return true;
+  });
+}
+
 async function searchWithFallback(userMessage, plannerQuery) {
   const primaryQuery = sanitizeSearchQuery(plannerQuery || userMessage);
   const fallbackQuery = sanitizeSearchQuery(userMessage);
@@ -1440,6 +1479,8 @@ async function generateChatReply({
 
     let filteredResults = [...rawResults];
 
+    filteredResults = filterProductsByGender(filteredResults, userProfile);
+
     filteredResults = filterProductsByPriceIntent(filteredResults, userMessage);
 
     if (filteredResults.length > 0) {
@@ -1466,8 +1507,13 @@ async function generateChatReply({
         sanitizeSearchQuery(userMessage)
       );
 
-      let broaderFiltered = filterProductsByPriceIntent(
+      let broaderFiltered = filterProductsByGender(
         broaderResults,
+        userProfile
+      );
+      
+      broaderFiltered = filterProductsByPriceIntent(
+        broaderFiltered,
         userMessage
       );
 
@@ -1501,8 +1547,13 @@ async function generateChatReply({
       if (filteredResults.length < 4) {
         const expandedLevel1 = expandPriceRange(min, max, 1);
 
-        let broaderFilteredLevel1 = filterProductsByExplicitRange(
+        let broaderFilteredLevel1 = filterProductsByGender(
           broaderResults,
+          userProfile
+        );
+        
+        broaderFilteredLevel1 = filterProductsByExplicitRange(
+          broaderFilteredLevel1,
           expandedLevel1.min,
           expandedLevel1.max
         );
