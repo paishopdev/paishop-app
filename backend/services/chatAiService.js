@@ -1385,7 +1385,7 @@ async function generateChatReply({
       console.log("GENERIC CATEGORY HIT:", genericCategoryQuestion);
   
       return {
-        assistantText: "[TEST] " + genericCategoryQuestion,
+        assistantText: genericCategoryQuestion,
         products: [],
         actions: [],
         comparison: null,
