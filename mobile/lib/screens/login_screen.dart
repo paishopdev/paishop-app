@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import 'register_screen.dart';
 import '../utils/responsive.dart';
 import '../utils/app_notice.dart';
+import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -70,7 +71,11 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (result["token"] != null) {
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(builder: (_) => const MyApp()),
+  (route) => false,
+);
     } else {
       showAppNotice(
   context,

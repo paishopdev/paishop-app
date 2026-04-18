@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../utils/responsive.dart';
 import '../utils/app_notice.dart';
+import '../main.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -94,7 +95,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     if (result["token"] != null) {
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(builder: (_) => const MyApp()),
+  (route) => false,
+);
     } else {
      showAppNotice(
   context,

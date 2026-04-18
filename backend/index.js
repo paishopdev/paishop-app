@@ -3,26 +3,31 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const mongoose = require('mongoose');
+
 const chatRoutes = require('./routes/chat');
 const favoriteRoutes = require('./routes/favorite');
-
 const recommendationRoutes = require('./routes/recommendations');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/userRoutes');
 
-
-
 const app = express();
-app.use('/api/users', userRoutes);
 const PORT = process.env.PORT || 3000;
-
 
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch((error) => console.error('MongoDB connection error:', error.message));
 
-app.use(cors());
+app.use(
+  cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+app.options('*', cors());
+
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -32,6 +37,7 @@ app.use((req, res, next) => {
 
 app.use('/api', recommendationRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/favorites', favoriteRoutes);
 
