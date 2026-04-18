@@ -6,6 +6,7 @@ import 'screens/favorites_screen.dart';
 import 'services/auth_service.dart';
 import 'services/user_profile_service.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -29,6 +30,7 @@ class MyApp extends StatelessWidget {
   '/home': (context) => const HomeScreen(),
   '/favorites': (context) => const FavoritesScreen(),
   '/onboarding': (context) => const OnboardingScreen(),
+  '/profile-details': (context) => const ProfileScreen(),
 },
     );
   }

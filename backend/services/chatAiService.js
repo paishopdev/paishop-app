@@ -682,6 +682,18 @@ Sen shopi'sin gelişmiş bir alışveriş asistanısın.
 Görevin kullanıcının son mesajını sınıflandırmak.
 
 Intent türleri:
+- Önce kullanıcının mesajının alışverişle ne kadar ilgili olduğunu değerlendir.
+- "shopping_relevance" alanını üret:
+  - "high" = doğrudan alışveriş / ürün / bütçe / marka / özellik / satın alma kararı
+  - "medium" = alışverişe bağlanabilecek ama net olmayan istek
+  - "low" = zayıf bağlantı
+  - "none" = alışveriş dışı
+- Eğer kullanıcı alışverişle ilgili bir şey söylüyor ama ürün tipi / kullanım amacı / bütçe / hedef belirsizse "needs_clarification" alanını true yap.
+- needs_clarification true ise kullanıcıya sorulacak tek, doğal ve kısa bir soru üret. Bunu "clarification_question" alanına yaz.
+- Eğer kullanıcı kısa gündelik sohbet yapıyorsa "small_talk" alanını true yap.
+- Küçük sohbet mesajları için needs_product_search=false yap.
+- Belirsiz ama alışveriş odaklı mesajlarda hemen ürün arama; önce netleştirme sorusu üret.
+- Kelime listesine bağımlı davranma. Mesajın genel niyetini anlamaya çalış.
 - "general_question" = genel bilgi sorusu
 - "product_search" = yeni ürün önerisi / arama isteği
 - "comparison" = mevcut ürünleri kıyaslama isteği
@@ -717,6 +729,12 @@ Intent türleri:
 - search_query üretirken fiyat bilgisini de kısa şekilde dahil et.
 
 Kurallar:
+- Eğer kullanıcı mesajı çok genel bir ürün isteğiyse ve doğru sonuç vermek için kullanım amacı, tarz, tür, bütçe veya alt kategori bilgisi gerekiyorsa needs_clarification=true yap.
+- Eğer kullanıcı profili varsa ve bu profil ilgili kategori için güçlü sinyal sağlıyorsa clarification yerine direkt ürün aramaya daha yatkın olabilirsin.
+- Ancak kullanıcı profili alakasızsa sadece profil var diye direkt ürün arama.
+- Ev, mutfak, dekorasyon, aksesuar, saat, çatal, tabak, bardak gibi kategorilerde kullanıcı profili çoğu zaman yeterli değildir; bu tür durumlarda belirsizlik varsa soru sormayı tercih et.
+- Ayakkabı, giyim, kombin gibi kategorilerde kullanıcı profili güçlü sinyal olabilir.
+- needs_clarification true olduğunda clarification_question kısa, doğal ve kategoriye uygun olsun.
 - Eğer kullanıcı önceki ürünlere atıf yapıyorsa bunu anlamaya çalış.
 - "bunlardan", "en iyisi", "2. ürün", "4. ürün", "en ucuz" gibi ifadeleri dikkate al.
 - Eğer yeni ürün aramak gerekiyorsa kısa bir arama sorgusu üret.
@@ -751,9 +769,13 @@ Kurallar:
 JSON formatı:
 {
   "intent": "general_question",
+  "shopping_relevance": "none",
   "needs_product_search": false,
+  "needs_clarification": false,
+  "clarification_question": "",
   "search_query": "",
-  "uses_recent_products": false
+  "uses_recent_products": false,
+  "small_talk": false
 }
 
 Sohbet geçmişi:
@@ -780,9 +802,13 @@ const parsed = safeParseJson(text);
 
 return parsed || {
   intent: 'general_question',
+  shopping_relevance: 'none',
   needs_product_search: false,
+  needs_clarification: false,
+  clarification_question: '',
   search_query: '',
   uses_recent_products: false,
+  small_talk: false,
 };
 }
 
@@ -1177,16 +1203,18 @@ async function generateChatReply({
   previousMessages = [],
   selectedProduct = null,
   userProfile = null,
-}) {
+})  
+
+{
   if (selectedProduct) {
     console.log("DETAIL FLOW ACTIVE FOR:", selectedProduct.name);
-  
+
     const detailResult = await generateSelectedProductDetail({
       selectedProduct,
       userMessage,
       userProfile,
     });
-  
+
     return {
       assistantText: 'Ürün detayını hazırladım.',
       products: [],
@@ -1207,6 +1235,7 @@ async function generateChatReply({
       },
     };
   }
+  console.log("NEW GENERATECHATREPLY ACTIVE:", userMessage);
 
   const recentProducts = extractRecentProducts(previousMessages);
   const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
@@ -1339,23 +1368,37 @@ async function generateChatReply({
     previousMessages,
     userProfile,
   });
-
-  const text = String(userMessage).toLowerCase().trim();
-
-  const shoppingKeywords = [
-    'ürün', 'öner', 'oner', 'fiyat', 'bütçe', 'butce', 'karşılaştır', 'karsilastir',
-    'telefon', 'kulaklık', 'kulaklik', 'mouse', 'tablet', 'bilgisayar', 'laptop',
-    'şarj', 'sarj', 'kamera', 'krem', 'makyaj', 'ayakkabı', 'ayakkabi', 'elbise',
-    'hediye', 'marka', 'ucuz', 'pahalı', 'pahali', 'benzer', 'alternatif',
-    'çanta', 'canta', 'saat', 'parfüm', 'parfum', 'kulak içi', 'oyuncu', 'gaming'
-  ];
-
-  const isShoppingRelated = shoppingKeywords.some((keyword) => text.includes(keyword));
-  const isSmallTalk = isSmallTalkMessage(userMessage);
-
+  
+  const normalizedMessage = normalizeText(userMessage.trim());
+  const wordCount = normalizedMessage.split(/\s+/).filter(Boolean).length;
+  const genericCategoryQuestion = detectGenericShoppingCategory(userMessage);
+  const profileHelpsThisCategory = hasUsefulProfileForCategory(userMessage, userProfile);
+  
+  // TEST için log
+  console.log("GENERIC QUESTION:", genericCategoryQuestion);
+  console.log("WORD COUNT:", wordCount);
+  console.log("PROFILE HELPS:", profileHelpsThisCategory);
+  
+  // 🔥 EN KRİTİK FIX
+  if (genericCategoryQuestion && wordCount <= 3) {
+    if (!profileHelpsThisCategory) {
+      console.log("GENERIC CATEGORY HIT:", genericCategoryQuestion);
+  
+      return {
+        assistantText: "[TEST] " + genericCategoryQuestion,
+        products: [],
+        actions: [],
+        comparison: null,
+      };
+    }
+  }
+  
+  const isSmallTalk =
+    planner.small_talk === true || isSmallTalkMessage(userMessage);
+  
   if (isSmallTalk) {
     const smallTalkReply = await generateSmallTalkReply(userMessage, previousMessages);
-
+  
     return {
       assistantText: smallTalkReply,
       products: [],
@@ -1364,14 +1407,25 @@ async function generateChatReply({
     };
   }
 
-  if (!isShoppingRelated) {
+  if (planner.needs_clarification && planner.clarification_question && !profileHelpsThisCategory) {
     return {
-      assistantText:
-        'Ben daha çok alışveriş, ürün önerisi ve karşılaştırma konusunda yardımcı oluyorum. İstersen bir ürün, kategori, bütçe veya özellik söyle; sana uygun seçenekler bulayım.',
+      assistantText: planner.clarification_question,
       products: [],
       actions: [],
       comparison: null,
     };
+  }
+
+  if (planner.shopping_relevance === 'none' || planner.shopping_relevance === 'low') {
+    if (genericCategoryQuestion) {
+      return {
+        assistantText: genericCategoryQuestion,
+        products: [],
+        actions: [],
+        comparison: null,
+      };
+    }
+
   }
 
   let searchedProducts = [];
@@ -1588,38 +1642,34 @@ ${firstMessage}
 }
 
 function isSmallTalkMessage(userMessage = '') {
-  const text = String(userMessage)
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\sçğıöşü]/gi, '');
+  const text = normalizeText(String(userMessage).trim());
 
-  const exactMatches = [
+  const patterns = [
     'merhaba',
     'selam',
     'selamlar',
     'hey',
     'hi',
     'hello',
-    'nasılsın',
     'nasilsin',
     'iyi misin',
-    'napıyorsun',
     'napiyorsun',
-    'ne yapıyorsun',
-    'teşekkürler',
+    'ne yapiyorsun',
+    'napiyosun',
+    'napiyosun',
+    'napiyon',
+    'napiyon',
+    'naber',
+    'ne haber',
     'tesekkurler',
-    'teşekkür ederim',
     'tesekkur ederim',
-    'sağ ol',
     'sag ol',
-    'görüşürüz',
     'gorusuruz',
-    'hoşçakal',
     'hoscakal',
     'bye'
   ];
 
-  return exactMatches.includes(text);
+  return patterns.some((p) => text.includes(p));
 }
 async function generateSmallTalkReply(userMessage, previousMessages = []) {
   console.log('SMALL TALK DYNAMIC HIT:', userMessage);
@@ -1766,6 +1816,81 @@ function formatUserProfile(userProfile = null) {
   }
 
   return parts.length > 0 ? parts.join('\n') : 'Kullanıcı profili boş.';
+}
+
+function hasUsefulProfileForCategory(userMessage = '', userProfile = null) {
+  if (!userProfile) return false;
+
+  const text = normalizeText(userMessage);
+
+  const hasShoeData = Boolean(userProfile.shoeSize && String(userProfile.shoeSize).trim());
+  const hasClothingData = Boolean(userProfile.clothingSize && String(userProfile.clothingSize).trim());
+  const hasStyleData = Boolean(userProfile.style && String(userProfile.style).trim());
+  const hasBodyData =
+    Boolean(userProfile.height && String(userProfile.height).trim()) ||
+    Boolean(userProfile.weight && String(userProfile.weight).trim());
+
+  const shoeRelated = [
+    'ayakkabi', 'sneaker', 'spor ayakkabi', 'bot', 'terlik', 'sandalet'
+  ].some((k) => text.includes(k));
+
+  const clothingRelated = [
+    'ceket', 'mont', 'elbise', 'pantolon', 'tisort', 'tshirt', 'gomlek',
+    'etek', 'kazak', 'sweatshirt', 'hoodie', 'kombin'
+  ].some((k) => text.includes(k));
+
+  if (shoeRelated) {
+    return hasShoeData || hasStyleData;
+  }
+
+  if (clothingRelated) {
+    return hasClothingData || hasStyleData || hasBodyData;
+  }
+
+  return false;
+}
+
+function detectGenericShoppingCategory(userMessage = '') {
+  const text = normalizeText(userMessage);
+
+  const categoryMap = [
+    {
+      keys: ['ayakkabi', 'sneaker', 'bot', 'terlik', 'sandalet'],
+      question: 'Nasıl bir ayakkabı arıyorsun? Günlük mü spor mu, ayrıca bütçe aralığın var mı?',
+    },
+    {
+      keys: ['ceket', 'mont', 'elbise', 'pantolon', 'tisort', 'tshirt', 'gomlek', 'etek', 'kazak', 'hoodie', 'sweatshirt', 'kombin'],
+      question: 'Nasıl bir model arıyorsun? Günlük mü şık mı, ayrıca bütçe veya renk tercihin var mı?',
+    },
+    {
+      keys: ['catal', 'tabak', 'bardak', 'bicak', 'kasik', 'mutfak'],
+      question: 'Nasıl bir ürün arıyorsun? Tekli mi set mi, günlük kullanım mı yoksa daha şık bir şey mi istiyorsun?',
+    },
+    {
+      keys: ['saat'],
+      question: 'Nasıl bir saat arıyorsun? Akıllı mı klasik mi, ayrıca bütçe aralığın var mı?',
+    },
+    {
+      keys: ['canta', 'valiz', 'sirt cantasi'],
+      question: 'Nasıl bir model arıyorsun? Günlük kullanım mı seyahat mi, ayrıca boyut veya bütçe tercihin var mı?',
+    },
+    {
+      keys: ['mouse', 'klavye', 'kulaklik', 'telefon', 'tablet', 'laptop'],
+      question: 'Hangi kullanım için arıyorsun? Günlük mü performans odaklı mı, ayrıca bütçe aralığın var mı?',
+    },
+    {
+      keys: ['kozmetik', 'makyaj', 'kapatici', 'ruj', 'fondoten', 'serum', 'krem', 'parfum'],
+      question: 'Nasıl bir ürün arıyorsun? Cilt bakımı mı makyaj mı, ayrıca belirli bir marka veya bütçe tercihin var mı?',
+    },
+  ];
+
+  for (const item of categoryMap) {
+    if (item.keys.some((k) => text.includes(k))) {
+      return item.question;
+    }
+  }
+
+  return null;
 }
 
 module.exports = {

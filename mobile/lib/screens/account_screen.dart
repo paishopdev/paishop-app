@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 import '../utils/app_notice.dart';
 import 'profile_edit_screen.dart';
+import 'profile_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -216,40 +217,54 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
           ),
           buildSectionCard([
-            buildInfoTile(
-              icon: Icons.email_outlined,
-              title: 'E-posta',
-              subtitle: email.isEmpty ? 'Bilgi yok' : email,
-              trailing: const Icon(Icons.lock_outline_rounded),
-            ),
-            Divider(height: 1, color: Colors.grey.shade200),
-            buildInfoTile(
-              icon: Icons.phone_outlined,
-              title: 'Telefon',
-              subtitle: phone,
-              trailing: const Icon(Icons.lock_outline_rounded),
-            ),
-            Divider(height: 1, color: Colors.grey.shade200),
-            buildInfoTile(
-              icon: Icons.workspace_premium_outlined,
-              title: 'Abonelik Durumu',
-              subtitle: 'Free Plan',
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Free',
-                  style: TextStyle(
-                    color: primaryColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ]),
+  buildInfoTile(
+    icon: Icons.email_outlined,
+    title: 'E-posta',
+    subtitle: email.isEmpty ? 'Bilgi yok' : email,
+    trailing: const Icon(Icons.lock_outline_rounded),
+  ),
+  Divider(height: 1, color: Colors.grey.shade200),
+  buildInfoTile(
+    icon: Icons.phone_outlined,
+    title: 'Telefon',
+    subtitle: phone,
+    trailing: const Icon(Icons.lock_outline_rounded),
+  ),
+  Divider(height: 1, color: Colors.grey.shade200),
+  buildInfoTile(
+    icon: Icons.straighten_rounded,
+    title: 'Beden & Stil Bilgilerim',
+    subtitle: 'Ayakkabı numarası, beden, boy, kilo ve stil bilgilerini yönet',
+    onTap: () async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ProfileScreen(),
+        ),
+      );
+    },
+  ),
+  Divider(height: 1, color: Colors.grey.shade200),
+  buildInfoTile(
+    icon: Icons.workspace_premium_outlined,
+    title: 'Abonelik Durumu',
+    subtitle: 'Free Plan',
+    trailing: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: primaryColor.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Free',
+        style: TextStyle(
+          color: primaryColor,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  ),
+]),
           buildSectionCard([
             buildInfoTile(
               icon: Icons.rocket_launch_outlined,
