@@ -15,6 +15,8 @@ import '../services/profile_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 
 
@@ -64,6 +66,8 @@ bool isListening = false;
   List<ChatMessage> messages = [];
   List<ChatItem> chatHistory = [];
   List<XFile> selectedGalleryImages = [];
+
+  Map<String, String> chatLastSeenMap = {};
 
   bool loading = false;
   String currentChatId = '';
@@ -262,6 +266,7 @@ Future<void> pickImageAndSearch() async {
 
     scrollToBottom();
     await loadChatHistory();
+    await saveChatLastSeen(currentChatId);
   } catch (e) {
     debugPrint("IMAGE SEARCH ERROR: $e");
   } finally {
@@ -375,6 +380,7 @@ Future<void> sendGalleryImagesWithPrompt() async {
 
     scrollToBottom();
     await loadChatHistory();
+    await saveChatLastSeen(currentChatId);
   } catch (e) {
     debugPrint("IMAGE CONTEXT ERROR: $e");
 
@@ -571,23 +577,127 @@ Widget buildDrawerAvatar() {
       ];
     });
 
-    await loadProfileCard();
-    await loadChatHistory();
-    await loadFavorites();
+await loadProfileCard();
+await resetUnreadIfNeeded();
+await loadChatLastSeenMap();
+await loadChatHistory();
+await loadFavorites();
   }
+
+  Future<void> loadChatLastSeenMap() async {
+  final prefs = await SharedPreferences.getInstance();
+  final data = prefs.getString('chat_last_seen_map');
+
+  if (data == null || data.isEmpty) {
+    setState(() {
+      chatLastSeenMap = {};
+    });
+    return;
+  }
+
+  try {
+    final decoded = Map<String, dynamic>.from(jsonDecode(data));
+
+    setState(() {
+      chatLastSeenMap = decoded.map(
+        (key, value) => MapEntry(key, value.toString()),
+      );
+    });
+  } catch (e) {
+    debugPrint("LAST SEEN LOAD ERROR: $e");
+    setState(() {
+      chatLastSeenMap = {};
+    });
+  }
+}
+
+Future<void> resetUnreadIfNeeded() async {
+  final prefs = await SharedPreferences.getInstance();
+
+  // Sadece bir kere eski bozuk veriyi temizle
+  final fixed = prefs.getBool('chat_unread_bug_fixed_v2') ?? false;
+  if (fixed) return;
+
+  await prefs.remove('chat_last_seen_map');
+  await prefs.remove('chat_unread_initialized');
+  await prefs.setBool('chat_unread_bug_fixed_v2', true);
+
+  setState(() {
+    chatLastSeenMap = {};
+  });
+}
+
+Future<void> saveChatLastSeen(String chatId) async {
+  if (chatId.isEmpty) return;
+
+  final prefs = await SharedPreferences.getInstance();
+
+  chatLastSeenMap[chatId] = DateTime.now().toIso8601String();
+
+  await prefs.setString(
+    'chat_last_seen_map',
+    jsonEncode(chatLastSeenMap),
+  );
+
+  if (mounted) {
+    setState(() {});
+  }
+}
+
+bool isChatUnread(ChatItem chat) {
+  if (chat.id.isEmpty) return false;
+
+  if (chat.id == currentChatId) return false;
+
+  final lastSeenRaw = chatLastSeenMap[chat.id];
+  if (lastSeenRaw == null || lastSeenRaw.isEmpty) {
+    return false;
+  }
+
+  try {
+    final lastSeen = DateTime.parse(lastSeenRaw);
+    final updatedAt = chat.updatedAt;
+
+    if (updatedAt == null) return false;
+
+    return updatedAt.isAfter(lastSeen);
+  } catch (e) {
+    debugPrint("UNREAD CHECK ERROR: $e");
+    return false;
+  }
+}
 
   Future<void> loadChatHistory() async {
-    if (userId.isEmpty) return;
+  if (userId.isEmpty) return;
 
-    try {
-      final chats = await ChatService.getUserChats(userId);
-      setState(() {
-        chatHistory = chats;
-      });
-    } catch (e) {
-      debugPrint(e.toString());
+  try {
+    final chats = await ChatService.getUserChats(userId);
+
+    final prefs = await SharedPreferences.getInstance();
+    final hasInitializedUnread =
+        prefs.getBool('chat_unread_initialized') ?? false;
+
+    if (!hasInitializedUnread) {
+      for (final chat in chats) {
+        if (chat.id.isNotEmpty && chat.updatedAt != null) {
+          chatLastSeenMap[chat.id] = chat.updatedAt!.toIso8601String();
+        }
+      }
+
+      await prefs.setString(
+        'chat_last_seen_map',
+        jsonEncode(chatLastSeenMap),
+      );
+      await prefs.setBool('chat_unread_initialized', true);
     }
+
+    setState(() {
+      chatHistory = chats;
+    });
+  } catch (e) {
+    debugPrint(e.toString());
   }
+}
 
   Future<void> createNewChatIfNeeded(String firstMessage) async {
     if (currentChatId.isNotEmpty || userId.isEmpty) return;
@@ -603,6 +713,7 @@ Widget buildDrawerAvatar() {
         currentChatTitle = chat["title"] ?? 'Yeni Sohbet';
       });
 
+      await saveChatLastSeen(chat["_id"] ?? '');
       await loadChatHistory();
     } catch (e) {
       debugPrint(e.toString());
@@ -695,6 +806,7 @@ setState(() {
   Navigator.pop(context);
 }
       scrollToBottom();
+      await saveChatLastSeen(chatItem.id);
     } catch (e) {
       debugPrint(e.toString());
     }
@@ -714,34 +826,45 @@ Future<void> search() async {
 
   final selectedContextBeforeSend = selectedProductContext;
 
+  // 🔥 Chat ID'yi SABİTLE
+  String chatIdForRequest = currentChatId;
+
+  // Eğer yeni chat ise önce oluştur
+  if (chatIdForRequest.isEmpty) {
+    await createNewChatIfNeeded(query);
+    chatIdForRequest = currentChatId;
+  }
+
   setState(() {
-    messages.add(
-      ChatMessage(
-        text: query,
-        isUser: true,
-        contextTitle: selectedContextBeforeSend?.name,
-        contextImage: selectedContextBeforeSend?.image,
-      ),
-    );
     loading = true;
     controller.clear();
   });
 
+  // 🔥 SADECE o chat için mesajı ekle
+  if (chatIdForRequest == currentChatId) {
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: query,
+          isUser: true,
+          contextTitle: selectedContextBeforeSend?.name,
+          contextImage: selectedContextBeforeSend?.image,
+        ),
+      );
+    });
+  }
+
   scrollToBottom();
-
-  await createNewChatIfNeeded(query);
-
-  debugPrint("SELECTED FRONTEND PRODUCT: ${selectedContextBeforeSend?.name}");
-  debugPrint("QUESTION TO SEND: $query");
 
   try {
     final result = await ChatService.sendMessage(
-      chatId: currentChatId,
+      chatId: chatIdForRequest,
       message: query,
       selectedProduct: selectedContextBeforeSend,
     );
 
-    final rawAssistantText = (result["assistantText"] ?? "").toString().trim();
+    final rawAssistantText =
+        (result["assistantText"] ?? "").toString().trim();
 
     final productsJson =
         result["products"] is List ? result["products"] as List : [];
@@ -766,71 +889,49 @@ Future<void> search() async {
         ? Map<String, dynamic>.from(result["reviewCard"])
         : null;
 
-    debugPrint("ACTIONS FROM BACKEND: $actions");
-    debugPrint("FULL RESULT: $result");
-    debugPrint("COMPARISON FROM BACKEND: ${result["comparison"]}");
-    debugPrint("DETAIL CARD FROM BACKEND: $detailCard");
-
-    final previousMaxScroll = scrollController.hasClients
-        ? scrollController.position.maxScrollExtent
-        : 0.0;
-
-    setState(() {
-      messages.add(
-        ChatMessage(
-          text: rawAssistantText,
-          isUser: false,
-          products: products.cast<Product>(),
-          actions: actions,
-          comparison: comparison,
-          detailCard: detailCard,
-          reviewCard: reviewCard,
-        ),
-      );
-
-      selectedProductContext = null;
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!scrollController.hasClients) return;
-
-      final hasRichContent = products.isNotEmpty ||
-          comparison != null ||
-          actions.isNotEmpty ||
-          detailCard != null ||
-          reviewCard != null;
-
-      if (hasRichContent) {
-        scrollController.animateTo(
-          previousMaxScroll,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
+    // 🔥 SADECE hala aynı chat açıksa ekle
+    if (chatIdForRequest == currentChatId) {
+      setState(() {
+        messages.add(
+          ChatMessage(
+            text: rawAssistantText,
+            isUser: false,
+            products: products,
+            actions: actions,
+            comparison: comparison,
+            detailCard: detailCard,
+            reviewCard: reviewCard,
+          ),
         );
-      } else {
-        scrollToBottom();
-      }
-    });
+
+        selectedProductContext = null;
+      });
+
+      scrollToBottom();
+    }
 
     await loadChatHistory();
+    if (chatIdForRequest == currentChatId) {
+  await saveChatLastSeen(chatIdForRequest);
+}
   } catch (e) {
-    setState(() {
-      messages.add(
-        ChatMessage(
-          text:
-              "Şu an isteğini işlerken bir sorun oldu. İstersen tekrar deneyebilir ya da isteğini biraz daha kısa yazabilirsin.",
-          isUser: false,
-        ),
-      );
-    });
+    if (chatIdForRequest == currentChatId) {
+      setState(() {
+        messages.add(
+          ChatMessage(
+            text:
+                "Şu an isteğini işlerken bir sorun oldu. Tekrar deneyebilirsin.",
+            isUser: false,
+          ),
+        );
+      });
+    }
 
     debugPrint(e.toString());
   }
 
   setState(() {
     loading = false;
-    if (!isListening) {
-      controller.clear();
-    }
   });
 }
 
@@ -1857,32 +1958,56 @@ Widget buildDrawer() {
                             horizontal: 14,
                             vertical: 8,
                           ),
-                          title: Text(
-                            chat.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
-                          ),
+                          title: Row(
+  children: [
+    Expanded(
+      child: Text(
+        chat.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: Colors.black87,
+        ),
+      ),
+    ),
+    if (isChatUnread(chat))
+      Container(
+        width: 10,
+        height: 10,
+        margin: const EdgeInsets.only(left: 8),
+        decoration: BoxDecoration(
+          color: primaryColor,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withOpacity(0.30),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+      ),
+  ],
+),
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  chat.lastMessage.isEmpty
-                                      ? "Henüz mesaj yok"
-                                      : chat.lastMessage,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade700,
-                                    fontSize: 12,
-                                    height: 1.35,
-                                  ),
-                                ),
+                               Text(
+  chat.lastMessage.isEmpty
+      ? "Henüz mesaj yok"
+      : chat.lastMessage,
+  maxLines: 2,
+  overflow: TextOverflow.ellipsis,
+  style: TextStyle(
+    color: isChatUnread(chat) ? Colors.black87 : Colors.grey.shade700,
+    fontSize: 12,
+    height: 1.35,
+    fontWeight: isChatUnread(chat) ? FontWeight.w600 : FontWeight.w400,
+  ),
+),
                                 const SizedBox(height: 6),
                                 Text(
                                   formatChatTime(chat.updatedAt),
