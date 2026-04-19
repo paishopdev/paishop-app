@@ -17,6 +17,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 
 
+
 class ChatMessage {
   final String text;
   final bool isUser;
@@ -25,9 +26,9 @@ class ChatMessage {
   final Map<String, dynamic>? comparison;
   final Map<String, dynamic>? detailCard;
   final Map<String, dynamic>? reviewCard;
-  final List<XFile>? galleryImages;
   final String? contextTitle;
   final String? contextImage;
+  final List<XFile>? galleryImages;
 
   ChatMessage({
     required this.text,
@@ -270,10 +271,24 @@ Future<void> pickImagesFromGallery() async {
 
     if (images.isEmpty) return;
 
-    final limitedImages = images.take(3).toList();
+    final List<XFile> merged = [
+      ...selectedGalleryImages,
+      ...images,
+    ];
+
+    final List<XFile> uniqueImages = [];
+    final seen = <String>{};
+
+    for (final image in merged) {
+      final key = image.path.isNotEmpty ? image.path : image.name;
+      if (!seen.contains(key)) {
+        seen.add(key);
+        uniqueImages.add(image);
+      }
+    }
 
     setState(() {
-      selectedGalleryImages = limitedImages;
+      selectedGalleryImages = uniqueImages.take(3).toList();
     });
   } catch (e) {
     debugPrint("GALLERY PICK ERROR: $e");
@@ -302,22 +317,27 @@ Future<void> sendGalleryImagesWithPrompt() async {
       await createNewChatIfNeeded("Görselle ürün arama");
     }
 
+    final pickedImages = List<XFile>.from(selectedGalleryImages);
+
     setState(() {
       messages.add(
         ChatMessage(
           text: query,
           isUser: true,
+          galleryImages: pickedImages,
         ),
       );
       loading = true;
+      controller.clear();
+      selectedGalleryImages = [];
     });
 
-    controller.clear();
+    scrollToBottom();
 
     final result = await ChatService.sendImageContextMessage(
       chatId: currentChatId,
       message: query,
-      images: selectedGalleryImages,
+      images: pickedImages,
     );
 
     final assistantText =
@@ -343,8 +363,6 @@ Future<void> sendGalleryImagesWithPrompt() async {
           actions: actions,
         ),
       );
-
-      selectedGalleryImages = [];
     });
 
     scrollToBottom();
@@ -991,6 +1009,50 @@ Widget buildMessageBubble(ChatMessage message) {
                   height: size,
                   color: Colors.white24,
                   child: const Icon(Icons.image_outlined, color: Colors.white),
+                );
+              }
+
+              return Image.memory(
+                snapshot.data!,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+              );
+            },
+          ),
+        );
+      }).toList(),
+    ),
+  ),
+  const SizedBox(height: 10),
+],
+if (message.isUser &&
+    message.galleryImages != null &&
+    message.galleryImages!.isNotEmpty) ...[
+  Align(
+    alignment: Alignment.centerRight,
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 8,
+      children: message.galleryImages!.map((image) {
+        final double size =
+            message.galleryImages!.length == 1 ? 110 : 82;
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: FutureBuilder<Uint8List>(
+            future: image.readAsBytes(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return Container(
+                  width: size,
+                  height: size,
+                  color: Colors.white24,
+                  child: const Icon(
+                    Icons.image_outlined,
+                    color: Colors.white,
+                  ),
                 );
               }
 

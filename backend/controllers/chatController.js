@@ -351,7 +351,7 @@ const searchByImageContext = async (req, res) => {
     const userText = message.trim();
 
     if (
-      !/urun|ürün|bul|nedir|benzer|ara|oner|öner|goster|göster|bu ne/i.test(userText)
+      !/urun|ürün|bul|nedir|benzer|ara|oner|öner|goster|göster|bu ne|hangi ürün/i.test(userText)
     ) {
       return res.status(200).json({
         assistantText:
@@ -364,10 +364,10 @@ const searchByImageContext = async (req, res) => {
 
     const imagePayloads = req.files.slice(0, 3).map((file) => {
       let safeMimeType = file.mimetype || 'image/jpeg';
-    
+
       if (!safeMimeType.startsWith('image/')) {
         const originalName = String(file.originalname || '').toLowerCase();
-    
+
         if (originalName.endsWith('.png')) {
           safeMimeType = 'image/png';
         } else if (originalName.endsWith('.webp')) {
@@ -376,16 +376,21 @@ const searchByImageContext = async (req, res) => {
           safeMimeType = 'image/jpeg';
         }
       }
-    
+
       return {
         mimeType: safeMimeType,
         base64: file.buffer.toString('base64'),
       };
     });
 
-    const searchQuery = await generateSearchQueryFromImages(imagePayloads, userText);
+    const queryResult = await generateSearchQueriesFromImages(imagePayloads, userText);
 
-    if (!searchQuery || !searchQuery.trim()) {
+    const candidateQueries = [
+      queryResult.primary_query,
+      ...(queryResult.alternative_queries || []),
+    ].filter(Boolean);
+
+    if (candidateQueries.length === 0) {
       return res.status(200).json({
         assistantText:
           'Görsellerden ürünü net ayırt edemedim. İstersen daha net fotoğraflarla tekrar deneyelim.',
@@ -395,7 +400,17 @@ const searchByImageContext = async (req, res) => {
       });
     }
 
-    const rawResults = await searchGoogleShopping(searchQuery);
+    let usedQuery = candidateQueries[0];
+    let rawResults = [];
+
+    for (const query of candidateQueries) {
+      const results = await searchGoogleShopping(query);
+      if (results && results.length > 0) {
+        rawResults = results;
+        usedQuery = query;
+        break;
+      }
+    }
 
     const products = (rawResults || []).slice(0, 10).map((item, index) => ({
       index: index + 1,
@@ -409,7 +424,10 @@ const searchByImageContext = async (req, res) => {
       short_reason: 'Yüklediğin görsellerle benzer özellik gösterdi.',
     }));
 
-    const assistantText = `"${searchQuery}" için görsellerine yakın ürünleri buldum.`;
+    const assistantText =
+        products.length > 0
+            ? `"${usedQuery}" için görsellerine yakın ürünleri buldum.`
+            : 'Görselleri analiz ettim ama net eşleşme bulamadım. İstersen farklı açıdan veya daha net görsellerle tekrar deneyelim.';
 
     chat.messages.push({
       role: 'user',
@@ -426,7 +444,7 @@ const searchByImageContext = async (req, res) => {
       role: 'assistant',
       text: assistantText,
       products,
-      actions: ['Benzer ürünler', 'Daha ucuz alternatifler'],
+      actions: products.length > 0 ? ['Benzer ürünler', 'Daha ucuz alternatifler'] : [],
       comparison: null,
       detailCard: null,
       reviewCard: null,
@@ -438,11 +456,11 @@ const searchByImageContext = async (req, res) => {
     return res.json({
       assistantText,
       products,
-      actions: ['Benzer ürünler', 'Daha ucuz alternatifler'],
+      actions: products.length > 0 ? ['Benzer ürünler', 'Daha ucuz alternatifler'] : [],
       comparison: null,
       detailCard: null,
       reviewCard: null,
-      searchQuery,
+      searchQuery: usedQuery,
       chat,
     });
   } catch (error) {
