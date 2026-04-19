@@ -13,6 +13,8 @@ import 'dart:io';
 import 'account_screen.dart';
 import '../services/profile_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:image_picker/image_picker.dart';
+
 
 
 class ChatMessage {
@@ -47,6 +49,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final ImagePicker _picker = ImagePicker();
   final TextEditingController controller = TextEditingController();
   final ScrollController scrollController = ScrollController();
   Product? selectedProductContext;
@@ -204,6 +207,56 @@ Future<void> startListening() async {
       });
     },
   );
+}
+
+Future<void> pickImageAndSearch() async {
+  try {
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    setState(() {
+      loading = true;
+    });
+
+    final file = File(image.path);
+
+    final result = await ChatService.sendImageMessage(
+      chatId: currentChatId,
+      imageFile: file,
+    );
+
+    final assistantText =
+        (result["assistantText"] ?? "").toString().trim();
+
+    final productsJson =
+        result["products"] is List ? result["products"] as List : [];
+
+    final products = productsJson
+        .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: assistantText,
+          isUser: false,
+          products: products,
+        ),
+      );
+    });
+
+    scrollToBottom();
+  } catch (e) {
+    debugPrint("IMAGE SEARCH ERROR: $e");
+  } finally {
+    setState(() {
+      loading = false;
+    });
+  }
 }
 
 void stopListening() {
@@ -434,8 +487,13 @@ Future<void> search() async {
     loading = true;
   });
 
+  setState(() {
   controller.clear();
-  scrollToBottom();
+});
+
+scrollToBottom();
+
+  selectedProductContext = null;
 
   await createNewChatIfNeeded(query);
 
@@ -535,8 +593,11 @@ Future<void> search() async {
   }
 
   setState(() {
-    loading = false;
-  });
+  loading = false;
+  if (!isListening) {
+    controller.clear();
+  }
+});
 }
 
 Future<void> sendQuickAction(String action) async {
@@ -1710,7 +1771,7 @@ if (selectedProductContext != null)
       ],
     ),
   ),
-          SafeArea(
+SafeArea(
   top: false,
   child: Container(
     padding: EdgeInsets.fromLTRB(horizontalPadding, 10, horizontalPadding, 14),
@@ -1724,94 +1785,154 @@ if (selectedProductContext != null)
         ),
       ],
     ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: 
-            TextField(
-              controller: controller,
-              focusNode: inputFocusNode,
-              minLines: 1,
-              maxLines: 4,
-              onSubmitted: (_) => search(),
-              decoration: InputDecoration(
-                hintText: isListening
-    ? "Dinleniyor..."
-    : "Bir ürün, bütçe veya özellik yaz...",
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+    child: AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeInOut,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: TextField(
+                controller: controller,
+                focusNode: inputFocusNode,
+                minLines: 1,
+                maxLines: 4,
+                onChanged: (_) {
+                  setState(() {});
+                },
+                onSubmitted: (_) => search(),
+                decoration: InputDecoration(
+                  hintText: isListening
+                      ? "Dinleniyor..."
+                      : "Bir ürün, bütçe veya özellik yaz...",
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        Container(
-  margin: const EdgeInsets.only(right: 10),
-  decoration: BoxDecoration(
-    color: isListening ? Colors.redAccent : Colors.white,
-    shape: BoxShape.circle,
-    border: Border.all(
-      color: isListening ? Colors.redAccent : Colors.grey.shade300,
-    ),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.04),
-        blurRadius: 8,
-        offset: const Offset(0, 3),
-      ),
-    ],
-  ),
-  child: IconButton(
-    onPressed: () {
-      if (isListening) {
-        stopListening();
-      } else {
-        startListening();
-      }
-    },
-    icon: Icon(
-      isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
-      color: isListening ? Colors.white : Colors.grey.shade700,
-    ),
-  ),
-),
-        const SizedBox(width: 10),
-        Container(
-          decoration: BoxDecoration(
-            color: primaryColor,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withOpacity(0.28),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: IconButton(
-            onPressed: loading ? null : search,
-            icon: loading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+          const SizedBox(width: 10),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: animation,
+                  child: child,
+                ),
+              );
+            },
+            child: controller.text.trim().isNotEmpty
+                ? Container(
+                    key: const ValueKey('send_button'),
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryColor.withOpacity(0.28),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      onPressed: loading ? null : search,
+                      icon: loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.arrow_upward_rounded,
+                              color: Colors.white,
+                            ),
                     ),
                   )
-                : const Icon(Icons.arrow_upward_rounded, color: Colors.white),
+                : Row(
+                    key: const ValueKey('voice_camera_actions'),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: isListening ? Colors.redAccent : Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isListening
+                                ? Colors.redAccent
+                                : Colors.grey.shade300,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            if (isListening) {
+                              stopListening();
+                            } else {
+                              startListening();
+                            }
+                          },
+                          icon: Icon(
+                            isListening
+                                ? Icons.mic_rounded
+                                : Icons.mic_none_rounded,
+                            color: isListening
+                                ? Colors.white
+                                : Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey.shade300),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          onPressed: loading ? null : pickImageAndSearch,
+                          icon: Icon(
+                            Icons.camera_alt_outlined,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   ),
 ),

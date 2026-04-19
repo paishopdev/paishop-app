@@ -1,5 +1,8 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
+const { searchGoogleShopping } = require('../services/googleShoppingService');
+const { generateSearchQueryFromImage } = require('../services/imageSearchService');
+
 const {
   generateChatReply,
   generateChatTitle,
@@ -184,7 +187,7 @@ const sendChatMessage = async (req, res) => {
 
 try {
   userProfile = await User.findById(chat.userId).select(
-    'shoeSize clothingSize height weight style onboardingCompleted'
+    'shoeSize clothingSize height weight style gender onboardingCompleted'
   );
 } catch (e) {
   console.error('User profile fetch error:', e.message);
@@ -238,6 +241,91 @@ const aiResult = await generateChatReply({
   }
 };
 
+const searchByImage = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Görsel zorunlu' });
+    }
+
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json({ error: 'Sohbet bulunamadı' });
+    }
+
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const base64Image = req.file.buffer.toString('base64');
+
+    const searchQuery = await generateSearchQueryFromImage(base64Image, mimeType);
+
+    if (!searchQuery || !searchQuery.trim()) {
+      return res.status(200).json({
+        assistantText:
+          'Görselden ürünü net ayırt edemedim. İstersen daha yakın veya daha net bir fotoğrafla tekrar deneyelim.',
+        products: [],
+        actions: [],
+        comparison: null,
+      });
+    }
+
+    const rawResults = await searchGoogleShopping(searchQuery);
+
+    const products = (rawResults || []).slice(0, 10).map((item, index) => ({
+      index: index + 1,
+      name: item.name || '',
+      price: item.price || '',
+      platform: item.platform || '',
+      image: item.image || '',
+      link: item.link || '',
+      rating: item.rating || null,
+      reviews: item.reviews || null,
+      short_reason: 'Görsele en yakın eşleşmelerden biri olarak öne çıktı.',
+    }));
+
+    const assistantText = `"${searchQuery}" için görsele benzer ürünleri buldum.`;
+
+    chat.messages.push({
+      role: 'user',
+      text: 'Görsel ile ürün arandı',
+      products: [],
+      actions: [],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      contextProduct: null,
+    });
+
+    chat.messages.push({
+      role: 'assistant',
+      text: assistantText,
+      products,
+      actions: ['Benzer ürünler', 'Daha ucuz alternatifler'],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      contextProduct: null,
+    });
+
+    await chat.save();
+
+    return res.json({
+      assistantText,
+      products,
+      actions: ['Benzer ürünler', 'Daha ucuz alternatifler'],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      searchQuery,
+      chat,
+    });
+  } catch (error) {
+    console.error('Image search error:', error.message);
+    return res.status(500).json({ error: 'Görsel arama başarısız' });
+  }
+};
+
 module.exports = {
   createChat,
   getUserChats,
@@ -245,4 +333,5 @@ module.exports = {
   deleteChat,
   addMessageToChat,
   sendChatMessage,
+  searchByImage,
 };

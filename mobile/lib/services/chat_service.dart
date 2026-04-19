@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/chat_item.dart';
 import '../models/product.dart';
@@ -88,40 +89,66 @@ class ChatService {
     }
   }
 
-static Future<Map<String, dynamic>> sendMessage({
-  required String chatId,
-  required String message,
-  Product? selectedProduct,
-}) async {
-  final response = await http.post(
-    Uri.parse("$baseUrl/$chatId/send"),
-    headers: {"Content-Type": "application/json"},
-    body: jsonEncode({
-      "message": message,
-      "selectedProduct": selectedProduct == null
-          ? null
-          : {
-              "name": selectedProduct.name,
-              "price": selectedProduct.price,
-              "platform": selectedProduct.platform,
-              "image": selectedProduct.image,
-              "link": selectedProduct.link,
-              "rating": selectedProduct.rating,
-              "reviews": selectedProduct.reviews,
-              "short_reason": selectedProduct.shortReason,
-            },
-    }),
-  );
+  static Future<Map<String, dynamic>> sendMessage({
+    required String chatId,
+    required String message,
+    Product? selectedProduct,
+  }) async {
+    final response = await http.post(
+      Uri.parse("$baseUrl/$chatId/send"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "message": message,
+        "selectedProduct": selectedProduct == null
+            ? null
+            : {
+                "name": selectedProduct.name,
+                "price": selectedProduct.price,
+                "platform": selectedProduct.platform,
+                "image": selectedProduct.image,
+                "link": selectedProduct.link,
+                "rating": selectedProduct.rating,
+                "reviews": selectedProduct.reviews,
+                "short_reason": selectedProduct.shortReason,
+              },
+      }),
+    );
 
-  print("SEND MESSAGE STATUS: ${response.statusCode}");
-print("SEND MESSAGE BODY: ${response.body}");
+    print("SEND MESSAGE STATUS: ${response.statusCode}");
+    print("SEND MESSAGE BODY: ${response.body}");
 
-
-
-  if (response.statusCode == 200) {
-    return jsonDecode(response.body);
-  } else {
-    throw Exception("Mesaj gönderilemedi: ${response.body}");
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception("Mesaj gönderilemedi: ${response.body}");
+    }
   }
-}
+
+  static Future<Map<String, dynamic>> sendImageMessage({
+    required String chatId,
+    required File imageFile,
+  }) async {
+    final uri = Uri.parse("$baseUrl/$chatId/image-search");
+
+    final request = http.MultipartRequest("POST", uri);
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'image',
+        imageFile.path,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    print("IMAGE STATUS: ${response.statusCode}");
+    print("IMAGE BODY: ${response.body}");
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception("Görsel arama başarısız: ${response.body}");
+    }
+  }
 }
