@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/chat_item.dart';
 import '../models/product.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 
@@ -128,33 +126,38 @@ class ChatService {
     }
   }
 
-  static Future<Map<String, dynamic>> sendImageMessage({
-    required String chatId,
-    required File imageFile,
-  }) async {
-    final uri = Uri.parse("$baseUrl/$chatId/image-search");
+static Future<Map<String, dynamic>> sendImageMessage({
+  required String chatId,
+  required XFile imageFile,
+}) async {
+  final uri = Uri.parse("$baseUrl/$chatId/image-search");
+  final request = http.MultipartRequest("POST", uri);
 
-    final request = http.MultipartRequest("POST", uri);
+  final bytes = await imageFile.readAsBytes();
+  final mimeType =
+      lookupMimeType(imageFile.name, headerBytes: bytes) ?? 'image/jpeg';
 
-    request.files.add(
-      await http.MultipartFile.fromPath(
-        'image',
-        imageFile.path,
-      ),
-    );
+  request.files.add(
+    http.MultipartFile.fromBytes(
+      'image',
+      bytes,
+      filename: imageFile.name.isNotEmpty ? imageFile.name : 'image.jpg',
+      contentType: MediaType.parse(mimeType),
+    ),
+  );
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+  final streamedResponse = await request.send();
+  final response = await http.Response.fromStream(streamedResponse);
 
-    print("IMAGE STATUS: ${response.statusCode}");
-    print("IMAGE BODY: ${response.body}");
+  print("IMAGE STATUS: ${response.statusCode}");
+  print("IMAGE BODY: ${response.body}");
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception("Görsel arama başarısız: ${response.body}");
-    }
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Görsel arama başarısız: ${response.body}");
   }
+}
  static Future<Map<String, dynamic>> sendImageContextMessage({
   required String chatId,
   required String message,

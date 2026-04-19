@@ -324,7 +324,7 @@ const searchByImage = async (req, res) => {
       chat,
     });
   } catch (error) {
-    console.error('Image search error:', error.message);
+    console.error('Image search error:', error);
     return res.status(500).json({ error: 'Görsel arama başarısız' });
   }
 };
@@ -388,7 +388,11 @@ const searchByImageContext = async (req, res) => {
     const candidateQueries = [
       queryResult.primary_query,
       ...(queryResult.alternative_queries || []),
-    ].filter(Boolean);
+    ]
+      .map((q) => String(q || '').trim())
+      .filter(Boolean);
+
+    console.log('IMAGE CANDIDATE QUERIES:', candidateQueries);
 
     if (candidateQueries.length === 0) {
       return res.status(200).json({
@@ -404,11 +408,17 @@ const searchByImageContext = async (req, res) => {
     let rawResults = [];
 
     for (const query of candidateQueries) {
-      const results = await searchGoogleShopping(query);
-      if (results && results.length > 0) {
-        rawResults = results;
-        usedQuery = query;
-        break;
+      try {
+        const results = await searchGoogleShopping(query);
+
+        if (Array.isArray(results) && results.length > 0) {
+          rawResults = results;
+          usedQuery = query;
+          break;
+        }
+      } catch (searchErr) {
+        console.error('searchGoogleShopping error for query:', query);
+        console.error(searchErr.message);
       }
     }
 
@@ -425,9 +435,9 @@ const searchByImageContext = async (req, res) => {
     }));
 
     const assistantText =
-        products.length > 0
-            ? `"${usedQuery}" için görsellerine yakın ürünleri buldum.`
-            : 'Görselleri analiz ettim ama net eşleşme bulamadım. İstersen farklı açıdan veya daha net görsellerle tekrar deneyelim.';
+      products.length > 0
+        ? `"${usedQuery}" için görsellerine yakın ürünleri buldum.`
+        : 'Görselleri analiz ettim ama net eşleşme bulamadım. İstersen farklı açıdan veya daha net görsellerle tekrar deneyelim.';
 
     chat.messages.push({
       role: 'user',
@@ -464,7 +474,7 @@ const searchByImageContext = async (req, res) => {
       chat,
     });
   } catch (error) {
-    console.error('Image context search error:', error.message);
+    console.error('Image context search error:', error);
     return res.status(500).json({ error: 'Görsellerle arama başarısız' });
   }
 };

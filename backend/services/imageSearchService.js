@@ -19,6 +19,13 @@ function safeParseJson(text) {
   }
 }
 
+function cleanQuery(text = '') {
+  return String(text)
+    .replace(/^"+|"+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function generateSearchQueriesFromImages(images = [], userMessage = '') {
   const content = [
     {
@@ -54,25 +61,6 @@ JSON formatı:
     "alternatif sorgu 3"
   ]
 }
-
-İyi örnekler:
-{
-  "primary_query": "Nike Air Force 1 beyaz sneaker",
-  "alternative_queries": [
-    "Nike beyaz sneaker",
-    "Nike Air Force beyaz ayakkabı",
-    "beyaz Nike spor ayakkabı"
-  ]
-}
-
-{
-  "primary_query": "JBL Tune 520BT kulaklık",
-  "alternative_queries": [
-    "JBL bluetooth kulaklık",
-    "JBL Tune kulaklık",
-    "JBL siyah kulaklık"
-  ]
-}
       `.trim(),
     },
   ];
@@ -101,17 +89,22 @@ JSON formatı:
   const parsed = safeParseJson(text);
 
   if (!parsed) {
+    const fallbackText = cleanQuery(text.split('\n')[0] || '');
+
     return {
-      primary_query: '',
+      primary_query: fallbackText,
       alternative_queries: [],
     };
   }
 
   return {
-    primary_query: String(parsed.primary_query || '').trim(),
+    primary_query: cleanQuery(parsed.primary_query || ''),
     alternative_queries: Array.isArray(parsed.alternative_queries)
-        ? parsed.alternative_queries.map((e) => String(e).trim()).filter(Boolean).slice(0, 3)
-        : [],
+      ? parsed.alternative_queries
+          .map((e) => cleanQuery(e))
+          .filter(Boolean)
+          .slice(0, 3)
+      : [],
   };
 }
 

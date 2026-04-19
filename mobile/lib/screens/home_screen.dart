@@ -222,15 +222,17 @@ Future<void> pickImageAndSearch() async {
 
     if (image == null) return;
 
+    if (currentChatId.isEmpty) {
+      await createNewChatIfNeeded("Görselle ürün arama");
+    }
+
     setState(() {
       loading = true;
     });
 
-    final file = File(image.path);
-
     final result = await ChatService.sendImageMessage(
       chatId: currentChatId,
-      imageFile: file,
+      imageFile: image,
     );
 
     final assistantText =
@@ -243,17 +245,23 @@ Future<void> pickImageAndSearch() async {
         .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
         .toList();
 
+    final actions = result["actions"] is List
+        ? List<String>.from(result["actions"])
+        : <String>[];
+
     setState(() {
       messages.add(
         ChatMessage(
           text: assistantText,
           isUser: false,
           products: products,
+          actions: actions,
         ),
       );
     });
 
     scrollToBottom();
+    await loadChatHistory();
   } catch (e) {
     debugPrint("IMAGE SEARCH ERROR: $e");
   } finally {
@@ -704,37 +712,33 @@ Future<void> search() async {
 
   if (query.isEmpty) return;
 
-final pickedImages = List<XFile>.from(selectedGalleryImages);
-
-setState(() {
-  messages.add(
-    ChatMessage(
-      text: query,
-      isUser: true,
-      galleryImages: pickedImages,
-    ),
-  );
-  loading = true;
-});
+  final selectedContextBeforeSend = selectedProductContext;
 
   setState(() {
-  controller.clear();
-});
+    messages.add(
+      ChatMessage(
+        text: query,
+        isUser: true,
+        contextTitle: selectedContextBeforeSend?.name,
+        contextImage: selectedContextBeforeSend?.image,
+      ),
+    );
+    loading = true;
+    controller.clear();
+  });
 
-scrollToBottom();
-
-  selectedProductContext = null;
+  scrollToBottom();
 
   await createNewChatIfNeeded(query);
 
-  debugPrint("SELECTED FRONTEND PRODUCT: ${selectedProductContext?.name}");
+  debugPrint("SELECTED FRONTEND PRODUCT: ${selectedContextBeforeSend?.name}");
   debugPrint("QUESTION TO SEND: $query");
 
   try {
     final result = await ChatService.sendMessage(
       chatId: currentChatId,
       message: query,
-      selectedProduct: selectedProductContext,
+      selectedProduct: selectedContextBeforeSend,
     );
 
     final rawAssistantText = (result["assistantText"] ?? "").toString().trim();
@@ -758,9 +762,9 @@ scrollToBottom();
         ? Map<String, dynamic>.from(result["detailCard"])
         : null;
 
-        final reviewCard = result["reviewCard"] != null
-    ? Map<String, dynamic>.from(result["reviewCard"])
-    : null;
+    final reviewCard = result["reviewCard"] != null
+        ? Map<String, dynamic>.from(result["reviewCard"])
+        : null;
 
     debugPrint("ACTIONS FROM BACKEND: $actions");
     debugPrint("FULL RESULT: $result");
@@ -791,10 +795,10 @@ scrollToBottom();
       if (!scrollController.hasClients) return;
 
       final hasRichContent = products.isNotEmpty ||
-    comparison != null ||
-    actions.isNotEmpty ||
-    detailCard != null ||
-    reviewCard != null;
+          comparison != null ||
+          actions.isNotEmpty ||
+          detailCard != null ||
+          reviewCard != null;
 
       if (hasRichContent) {
         scrollController.animateTo(
@@ -823,11 +827,11 @@ scrollToBottom();
   }
 
   setState(() {
-  loading = false;
-  if (!isListening) {
-    controller.clear();
-  }
-});
+    loading = false;
+    if (!isListening) {
+      controller.clear();
+    }
+  });
 }
 
 Future<void> sendQuickAction(String action) async {
@@ -927,165 +931,121 @@ Future<void> sendQuickAction(String action) async {
 Widget buildMessageBubble(ChatMessage message) {
   final isUser = message.isUser;
 
-  Widget bubble = Container(
-    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    constraints: BoxConstraints(
-      maxWidth: MediaQuery.of(context).size.width * 0.82,
-    ),
-    decoration: BoxDecoration(
-      color: isUser ? userBubbleColor : assistantBubbleColor,
-      borderRadius: BorderRadius.only(
-        topLeft: const Radius.circular(20),
-        topRight: const Radius.circular(20),
-        bottomLeft: Radius.circular(isUser ? 20 : 8),
-        bottomRight: Radius.circular(isUser ? 8 : 20),
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 14,
-          offset: const Offset(0, 6),
-        ),
-      ],
-      border: isUser ? null : Border.all(color: Colors.grey.shade200),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (!isUser)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 14,
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "Shopi",
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        if (message.text.trim().isNotEmpty)
-        if (message.isUser &&
-    message.galleryImages != null &&
-    message.galleryImages!.isNotEmpty) ...[
-  SizedBox(
-    width: double.infinity,
-    child: Wrap(
-      alignment: WrapAlignment.end,
-      spacing: 8,
-      runSpacing: 8,
-      children: message.galleryImages!.map((image) {
-        final double size =
-            message.galleryImages!.length == 1 ? 110 : 82;
-
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: FutureBuilder<Uint8List>(
-            future: image.readAsBytes(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return Container(
-                  width: size,
-                  height: size,
-                  color: Colors.white24,
-                  child: const Icon(Icons.image_outlined, color: Colors.white),
-                );
-              }
-
-              return Image.memory(
-                snapshot.data!,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-              );
-            },
-          ),
-        );
-      }).toList(),
-    ),
-  ),
-  const SizedBox(height: 10),
-],
-if (message.isUser &&
-    message.galleryImages != null &&
-    message.galleryImages!.isNotEmpty) ...[
-  Align(
-    alignment: Alignment.centerRight,
-    child: Wrap(
-      alignment: WrapAlignment.end,
-      spacing: 8,
-      runSpacing: 8,
-      children: message.galleryImages!.map((image) {
-        final double size =
-            message.galleryImages!.length == 1 ? 110 : 82;
-
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: FutureBuilder<Uint8List>(
-            future: image.readAsBytes(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return Container(
-                  width: size,
-                  height: size,
-                  color: Colors.white24,
-                  child: const Icon(
-                    Icons.image_outlined,
-                    color: Colors.white,
-                  ),
-                );
-              }
-
-              return Image.memory(
-                snapshot.data!,
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-              );
-            },
-          ),
-        );
-      }).toList(),
-    ),
-  ),
-  const SizedBox(height: 10),
-],
-  Text(
-    message.text,
-    style: TextStyle(
-      color: isUser ? Colors.white : Colors.black87,
-      fontSize: 15,
-      height: 1.45,
-      fontWeight: FontWeight.w400,
-    ),
-  ),
-      ],
-    ),
-  );
-
   return Align(
     alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-    child: bubble,
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.82,
+      ),
+      decoration: BoxDecoration(
+        color: isUser ? userBubbleColor : assistantBubbleColor,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(20),
+          topRight: const Radius.circular(20),
+          bottomLeft: Radius.circular(isUser ? 20 : 8),
+          bottomRight: Radius.circular(isUser ? 8 : 20),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+        border: isUser ? null : Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isUser)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 14,
+                      color: primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Shopi",
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (isUser &&
+              message.galleryImages != null &&
+              message.galleryImages!.isNotEmpty) ...[
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
+              children: message.galleryImages!.map((image) {
+                final double size =
+                    message.galleryImages!.length == 1 ? 110 : 82;
+
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: FutureBuilder<Uint8List>(
+                    future: image.readAsBytes(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return Container(
+                          width: size,
+                          height: size,
+                          color: Colors.white24,
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: isUser ? Colors.white : Colors.black54,
+                          ),
+                        );
+                      }
+
+                      return Image.memory(
+                        snapshot.data!,
+                        width: size,
+                        height: size,
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
+          ],
+
+          if (message.text.trim().isNotEmpty)
+            Text(
+              message.text,
+              style: TextStyle(
+                color: isUser ? Colors.white : Colors.black87,
+                fontSize: 15,
+                height: 1.45,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+        ],
+      ),
+    ),
   );
 }
 
