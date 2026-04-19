@@ -1,11 +1,11 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 const { searchGoogleShopping } = require('../services/googleShoppingService');
+
 const {
   generateSearchQueryFromImage,
-  generateSearchQueryFromImages,
+  generateSearchQueriesFromImages,
 } = require('../services/imageSearchService');
-
 const {
   generateChatReply,
   generateChatTitle,
