@@ -155,7 +155,7 @@ class ChatService {
       throw Exception("Görsel arama başarısız: ${response.body}");
     }
   }
-  static Future<Map<String, dynamic>> sendImageContextMessage({
+ static Future<Map<String, dynamic>> sendImageContextMessage({
   required String chatId,
   required String message,
   required List<XFile> images,
@@ -168,11 +168,15 @@ class ChatService {
   for (final image in images.take(3)) {
     final bytes = await image.readAsBytes();
 
+    final mimeType =
+        lookupMimeType(image.name, headerBytes: bytes) ?? 'image/jpeg';
+
     request.files.add(
       http.MultipartFile.fromBytes(
         'images',
         bytes,
-        filename: image.name,
+        filename: image.name.isNotEmpty ? image.name : 'image.jpg',
+        contentType: MediaType.parse(mimeType),
       ),
     );
   }

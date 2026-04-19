@@ -362,10 +362,26 @@ const searchByImageContext = async (req, res) => {
       });
     }
 
-    const imagePayloads = req.files.slice(0, 3).map((file) => ({
-      mimeType: file.mimetype || 'image/jpeg',
-      base64: file.buffer.toString('base64'),
-    }));
+    const imagePayloads = req.files.slice(0, 3).map((file) => {
+      let safeMimeType = file.mimetype || 'image/jpeg';
+    
+      if (!safeMimeType.startsWith('image/')) {
+        const originalName = String(file.originalname || '').toLowerCase();
+    
+        if (originalName.endsWith('.png')) {
+          safeMimeType = 'image/png';
+        } else if (originalName.endsWith('.webp')) {
+          safeMimeType = 'image/webp';
+        } else {
+          safeMimeType = 'image/jpeg';
+        }
+      }
+    
+      return {
+        mimeType: safeMimeType,
+        base64: file.buffer.toString('base64'),
+      };
+    });
 
     const searchQuery = await generateSearchQueryFromImages(imagePayloads, userText);
 

@@ -14,7 +14,7 @@ import 'account_screen.dart';
 import '../services/profile_service.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:image_picker/image_picker.dart';
-
+import 'dart:typed_data';
 
 
 class ChatMessage {
@@ -25,6 +25,7 @@ class ChatMessage {
   final Map<String, dynamic>? comparison;
   final Map<String, dynamic>? detailCard;
   final Map<String, dynamic>? reviewCard;
+  final List<XFile>? galleryImages;
   final String? contextTitle;
   final String? contextImage;
 
@@ -38,6 +39,7 @@ class ChatMessage {
     this.reviewCard,
     this.contextTitle,
     this.contextImage,
+    this.galleryImages,
   });
 }
 
@@ -684,19 +686,18 @@ Future<void> search() async {
 
   if (query.isEmpty) return;
 
-  final selectedContextBeforeSend = selectedProductContext;
+final pickedImages = List<XFile>.from(selectedGalleryImages);
 
-  setState(() {
-    messages.add(
-      ChatMessage(
-        text: query,
-        isUser: true,
-        contextTitle: selectedContextBeforeSend?.name,
-        contextImage: selectedContextBeforeSend?.image,
-      ),
-    );
-    loading = true;
-  });
+setState(() {
+  messages.add(
+    ChatMessage(
+      text: query,
+      isUser: true,
+      galleryImages: pickedImages,
+    ),
+  );
+  loading = true;
+});
 
   setState(() {
   controller.clear();
@@ -966,6 +967,47 @@ Widget buildMessageBubble(ChatMessage message) {
             ),
           ),
         if (message.text.trim().isNotEmpty)
+        if (message.isUser &&
+    message.galleryImages != null &&
+    message.galleryImages!.isNotEmpty) ...[
+  SizedBox(
+    width: double.infinity,
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 8,
+      children: message.galleryImages!.map((image) {
+        final double size =
+            message.galleryImages!.length == 1 ? 110 : 82;
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: FutureBuilder<Uint8List>(
+            future: image.readAsBytes(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return Container(
+                  width: size,
+                  height: size,
+                  color: Colors.white24,
+                  child: const Icon(Icons.image_outlined, color: Colors.white),
+                );
+              }
+
+              return Image.memory(
+                snapshot.data!,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+              );
+            },
+          ),
+        );
+      }).toList(),
+    ),
+  ),
+  const SizedBox(height: 10),
+],
   Text(
     message.text,
     style: TextStyle(
@@ -1982,27 +2024,24 @@ if (selectedProductContext != null)
       ],
     ),
   ),
-  if (selectedGalleryImages.isNotEmpty)
+if (selectedGalleryImages.isNotEmpty)
   Container(
+    width: double.infinity,
     margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF6F6F8),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.grey.shade200),
-    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Seçili görseller",
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF6C63FF),
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            "Seçili görseller",
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF6C63FF),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -2010,32 +2049,54 @@ if (selectedProductContext != null)
               final index = entry.key;
               final image = entry.value;
 
+              final double size =
+                  selectedGalleryImages.length == 1 ? 74 : 62;
+
               return Padding(
                 padding: EdgeInsets.only(
                   right: index == selectedGalleryImages.length - 1 ? 0 : 8,
                 ),
                 child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        image.path,
-                        width: 62,
-                        height: 62,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) {
-                          return Container(
-                            width: 62,
-                            height: 62,
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.image_outlined),
-                          );
-                        },
+                    Container(
+                      width: size,
+                      height: size,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: FutureBuilder<Uint8List>(
+                          future: image.readAsBytes(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return Container(
+                                color: Colors.grey.shade100,
+                                child: const Icon(Icons.image_outlined),
+                              );
+                            }
+
+                            return Image.memory(
+                              snapshot.data!,
+                              fit: BoxFit.cover,
+                            );
+                          },
+                        ),
                       ),
                     ),
                     Positioned(
-                      top: 2,
-                      right: 2,
+                      top: -6,
+                      right: -6,
                       child: GestureDetector(
                         onTap: () {
                           setState(() {
@@ -2043,14 +2104,16 @@ if (selectedProductContext != null)
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
                             shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
                           ),
                           child: const Icon(
-                            Icons.close,
-                            size: 12,
+                            Icons.close_rounded,
+                            size: 14,
                             color: Colors.white,
                           ),
                         ),
