@@ -1,7 +1,10 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 const { searchGoogleShopping } = require('../services/googleShoppingService');
-const { generateSearchQueryFromImage } = require('../services/imageSearchService');
+const {
+  generateSearchQueryFromImage,
+  generateSearchQueryFromImages,
+} = require('../services/imageSearchService');
 
 const {
   generateChatReply,
@@ -326,6 +329,112 @@ const searchByImage = async (req, res) => {
   }
 };
 
+const searchByImageContext = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { message } = req.body;
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'En az bir görsel gerekli' });
+    }
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Mesaj zorunlu' });
+    }
+
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json({ error: 'Sohbet bulunamadı' });
+    }
+
+    const userText = message.trim();
+
+    if (
+      !/urun|ürün|bul|nedir|benzer|ara|oner|öner|goster|göster|bu ne/i.test(userText)
+    ) {
+      return res.status(200).json({
+        assistantText:
+          'Yüklediğin görseller için ürün bulma, benzerini arama veya ne olduğunu anlama konusunda yardımcı olabilirim. İstersen "ürünü bul" gibi bir şey yaz.',
+        products: [],
+        actions: [],
+        comparison: null,
+      });
+    }
+
+    const imagePayloads = req.files.slice(0, 3).map((file) => ({
+      mimeType: file.mimetype || 'image/jpeg',
+      base64: file.buffer.toString('base64'),
+    }));
+
+    const searchQuery = await generateSearchQueryFromImages(imagePayloads, userText);
+
+    if (!searchQuery || !searchQuery.trim()) {
+      return res.status(200).json({
+        assistantText:
+          'Görsellerden ürünü net ayırt edemedim. İstersen daha net fotoğraflarla tekrar deneyelim.',
+        products: [],
+        actions: [],
+        comparison: null,
+      });
+    }
+
+    const rawResults = await searchGoogleShopping(searchQuery);
+
+    const products = (rawResults || []).slice(0, 10).map((item, index) => ({
+      index: index + 1,
+      name: item.name || '',
+      price: item.price || '',
+      platform: item.platform || '',
+      image: item.image || '',
+      link: item.link || '',
+      rating: item.rating || null,
+      reviews: item.reviews || null,
+      short_reason: 'Yüklediğin görsellerle benzer özellik gösterdi.',
+    }));
+
+    const assistantText = `"${searchQuery}" için görsellerine yakın ürünleri buldum.`;
+
+    chat.messages.push({
+      role: 'user',
+      text: userText,
+      products: [],
+      actions: [],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      contextProduct: null,
+    });
+
+    chat.messages.push({
+      role: 'assistant',
+      text: assistantText,
+      products,
+      actions: ['Benzer ürünler', 'Daha ucuz alternatifler'],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      contextProduct: null,
+    });
+
+    await chat.save();
+
+    return res.json({
+      assistantText,
+      products,
+      actions: ['Benzer ürünler', 'Daha ucuz alternatifler'],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      searchQuery,
+      chat,
+    });
+  } catch (error) {
+    console.error('Image context search error:', error.message);
+    return res.status(500).json({ error: 'Görsellerle arama başarısız' });
+  }
+};
+
 module.exports = {
   createChat,
   getUserChats,
@@ -334,4 +443,5 @@ module.exports = {
   addMessageToChat,
   sendChatMessage,
   searchByImage,
+  searchByImageContext,
 };

@@ -9,6 +9,7 @@ const {
   addMessageToChat,
   sendChatMessage,
   searchByImage,
+  searchByImageContext,
 } = require('../controllers/chatController');
 
 const router = express.Router();
@@ -21,5 +22,6 @@ router.delete('/:chatId', deleteChat);
 router.post('/:chatId/message', addMessageToChat);
 router.post('/:chatId/send', sendChatMessage);
 router.post('/:chatId/image-search', upload.single('image'), searchByImage);
+router.post('/:chatId/image-context-search', upload.array('images', 3), searchByImageContext);
 
 module.exports = router;

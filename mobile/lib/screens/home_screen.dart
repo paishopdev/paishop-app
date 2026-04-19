@@ -60,6 +60,7 @@ bool isListening = false;
 
   List<ChatMessage> messages = [];
   List<ChatItem> chatHistory = [];
+  List<XFile> selectedGalleryImages = [];
 
   bool loading = false;
   String currentChatId = '';
@@ -257,6 +258,210 @@ Future<void> pickImageAndSearch() async {
       loading = false;
     });
   }
+}
+
+Future<void> pickImagesFromGallery() async {
+  try {
+    final List<XFile> images = await _picker.pickMultiImage(
+      imageQuality: 85,
+    );
+
+    if (images.isEmpty) return;
+
+    final limitedImages = images.take(3).toList();
+
+    setState(() {
+      selectedGalleryImages = limitedImages;
+    });
+  } catch (e) {
+    debugPrint("GALLERY PICK ERROR: $e");
+  }
+}
+
+Future<void> sendGalleryImagesWithPrompt() async {
+  final query = controller.text.trim();
+
+  if (selectedGalleryImages.isEmpty) return;
+
+  if (query.isEmpty) {
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: "Görselleri yükledim. Ne yapmamı istediğini de yazmalısın.",
+          isUser: false,
+        ),
+      );
+    });
+    return;
+  }
+
+  try {
+    if (currentChatId.isEmpty) {
+      await createNewChatIfNeeded("Görselle ürün arama");
+    }
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: query,
+          isUser: true,
+        ),
+      );
+      loading = true;
+    });
+
+    controller.clear();
+
+    final result = await ChatService.sendImageContextMessage(
+      chatId: currentChatId,
+      message: query,
+      images: selectedGalleryImages,
+    );
+
+    final assistantText =
+        (result["assistantText"] ?? "").toString().trim();
+
+    final productsJson =
+        result["products"] is List ? result["products"] as List : [];
+
+    final products = productsJson
+        .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
+
+    final actions = result["actions"] is List
+        ? List<String>.from(result["actions"])
+        : <String>[];
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: assistantText,
+          isUser: false,
+          products: products,
+          actions: actions,
+        ),
+      );
+
+      selectedGalleryImages = [];
+    });
+
+    scrollToBottom();
+    await loadChatHistory();
+  } catch (e) {
+    debugPrint("IMAGE CONTEXT ERROR: $e");
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text:
+              "Görselleri işlerken bir sorun oldu. İstersen tekrar deneyelim.",
+          isUser: false,
+        ),
+      );
+    });
+  } finally {
+    setState(() {
+      loading = false;
+    });
+  }
+}
+
+void showImageSourcePicker() {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                "Görsel ekle",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "İstersen yeni fotoğraf çek ya da galerinden görsel seç.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 18),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF).withOpacity(0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.photo_camera_outlined,
+                    color: Color(0xFF6C63FF),
+                  ),
+                ),
+                title: const Text(
+                  "Kamera ile çek",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text("Anlık fotoğraf çekip ürün ara"),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickImageAndSearch();
+                },
+              ),
+              const SizedBox(height: 6),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF).withOpacity(0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.photo_library_outlined,
+                    color: Color(0xFF6C63FF),
+                  ),
+                ),
+                title: const Text(
+                  "Galeriden seç",
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text("En fazla 3 görsel seçebilirsin"),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickImagesFromGallery();
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 void stopListening() {
@@ -471,6 +676,12 @@ Future<void> search() async {
   if (loading) return;
 
   final query = controller.text.trim();
+
+  if (selectedGalleryImages.isNotEmpty) {
+    await sendGalleryImagesWithPrompt();
+    return;
+  }
+
   if (query.isEmpty) return;
 
   final selectedContextBeforeSend = selectedProductContext;
@@ -1771,6 +1982,89 @@ if (selectedProductContext != null)
       ],
     ),
   ),
+  if (selectedGalleryImages.isNotEmpty)
+  Container(
+    margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF6F6F8),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.grey.shade200),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Seçili görseller",
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6C63FF),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: selectedGalleryImages.asMap().entries.map((entry) {
+              final index = entry.key;
+              final image = entry.value;
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  right: index == selectedGalleryImages.length - 1 ? 0 : 8,
+                ),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        image.path,
+                        width: 62,
+                        height: 62,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) {
+                          return Container(
+                            width: 62,
+                            height: 62,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.image_outlined),
+                          );
+                        },
+                      ),
+                    ),
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedGalleryImages.removeAt(index);
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    ),
+  ),
 SafeArea(
   top: false,
   child: Container(
@@ -1921,7 +2215,7 @@ SafeArea(
                           ],
                         ),
                         child: IconButton(
-                          onPressed: loading ? null : pickImageAndSearch,
+                          onPressed: loading ? null : showImageSourcePicker,
                           icon: Icon(
                             Icons.camera_alt_outlined,
                             color: Colors.grey.shade700,

@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/chat_item.dart';
 import '../models/product.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
 
 class ChatService {
   static const String baseUrl = "https://paishop-api.onrender.com/api/chats";
@@ -151,4 +155,38 @@ class ChatService {
       throw Exception("Görsel arama başarısız: ${response.body}");
     }
   }
+  static Future<Map<String, dynamic>> sendImageContextMessage({
+  required String chatId,
+  required String message,
+  required List<XFile> images,
+}) async {
+  final uri = Uri.parse("$baseUrl/$chatId/image-context-search");
+  final request = http.MultipartRequest("POST", uri);
+
+  request.fields["message"] = message;
+
+  for (final image in images.take(3)) {
+    final bytes = await image.readAsBytes();
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'images',
+        bytes,
+        filename: image.name,
+      ),
+    );
+  }
+
+  final streamedResponse = await request.send();
+  final response = await http.Response.fromStream(streamedResponse);
+
+  print("IMAGE CONTEXT STATUS: ${response.statusCode}");
+  print("IMAGE CONTEXT BODY: ${response.body}");
+
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Görsel bağlamlı arama başarısız: ${response.body}");
+  }
+}
 }
