@@ -1,5 +1,6 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
+const Favorite = require('../models/Favorite');
 function buildCrossChatMemory(currentChat, allChats = []) {
   const currentChatId = String(currentChat?._id || '');
 
@@ -202,6 +203,11 @@ const sendChatMessage = async (req, res) => {
 
     const allUserChats = await Chat.find({ userId: chat.userId }).sort({ updatedAt: -1 });
 
+    const favoriteDocs = await Favorite.find({ userId: chat.userId }).sort({ createdAt: -1 });
+const favoriteProducts = favoriteDocs
+  .map((fav) => fav.product)
+  .filter(Boolean);
+
     const userText = message.trim();
 
     chat.messages.push({
@@ -236,6 +242,7 @@ const aiResult = await generateChatReply({
   previousMessages: memoryMessages,
   selectedProduct,
   userProfile,
+  favoriteProducts,
 });
 
     const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
@@ -385,6 +392,11 @@ const searchByImageContext = async (req, res) => {
 
     const allUserChats = await Chat.find({ userId: chat.userId }).sort({ updatedAt: -1 });
 const memoryMessages = buildCrossChatMemory(chat, allUserChats);
+
+const favoriteDocs = await Favorite.find({ userId: chat.userId }).sort({ createdAt: -1 });
+const favoriteProducts = favoriteDocs
+  .map((fav) => fav.product)
+  .filter(Boolean);
 
     const userText = message.trim();
 

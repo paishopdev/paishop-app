@@ -710,9 +710,14 @@ function formatHistory(previousMessages = []) {
     .join('\n');
 }
 
-async function generatePlanner({ userMessage, previousMessages = [], userProfile = null }) {
+async function generatePlanner({
+  userMessage,
+  previousMessages = [],
+  userProfile = null,
+  favoriteProducts = [],
+}) {
   const profileText = formatUserProfile(userProfile);
-  const preferenceSummary = buildUserPreferenceSummary(previousMessages);
+  const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
   const historyText = formatHistory(previousMessages);
   const recentProducts = extractRecentProducts(previousMessages);
 
@@ -865,9 +870,10 @@ async function generateAnswer({
   planner,
   searchedProducts = [],
   userProfile = null,
+  favoriteProducts = [],
 }) {
   const profileText = formatUserProfile(userProfile);
-  const preferenceSummary = buildUserPreferenceSummary(previousMessages);
+  const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
   const historyText = formatHistory(previousMessages);
   const recentProducts = extractRecentProducts(previousMessages);
   const normalizedSearchedProducts = normalizeProducts(searchedProducts);
@@ -1295,7 +1301,8 @@ async function generateChatReply({
   previousMessages = [],
   selectedProduct = null,
   userProfile = null,
-})  
+  favoriteProducts = [],
+})
 
 {
   if (selectedProduct) {
@@ -1361,7 +1368,7 @@ async function generateChatReply({
 
   if (isUserPreferenceQuestion(userMessage)) {
     return {
-      assistantText: generatePreferenceInsightReply(previousMessages),
+      assistantText: generatePreferenceInsightReply(previousMessages, favoriteProducts),
       products: [],
       actions: [],
       comparison: null,
@@ -1369,7 +1376,7 @@ async function generateChatReply({
   }
 
   if (isGenericRecommendationRequest(userMessage)) {
-    const preferenceSeed = buildPreferenceSeed(previousMessages);
+    const preferenceSeed = buildPreferenceSeed(previousMessages, favoriteProducts);
 
     if (preferenceSeed && preferenceSeed.trim().length > 0) {
       const seededMessage = `
@@ -1386,6 +1393,7 @@ ${userMessage}
         userMessage: seededMessage,
         previousMessages,
         userProfile,
+        favoriteProducts,
       });
 
       let searchedProducts = [];
@@ -1428,6 +1436,7 @@ ${userMessage}
         planner,
         searchedProducts,
         userProfile,
+        favoriteProducts,
       });
 
       const finalProducts =
@@ -1582,6 +1591,7 @@ ${userMessage}
     userMessage,
     previousMessages,
     userProfile,
+    favoriteProducts,
   });
   
   const normalizedMessage = normalizeText(userMessage.trim());
@@ -1782,6 +1792,7 @@ ${userMessage}
     planner,
     searchedProducts,
     userProfile,
+    favoriteProducts,
   });
 
   if (isComparisonRequest && comparisonProducts.length >= 2) {
@@ -2215,116 +2226,6 @@ function extractBrandSignals(text = '') {
   return knownBrands.filter((brand) => t.includes(normalizeText(brand)));
 }
 
-function buildUserPreferenceProfile(previousMessages = []) {
-  const categoryScores = {};
-  const brandScores = {};
-  let priceSensitiveScore = 0;
-  let premiumScore = 0;
-
-  for (const msg of previousMessages) {
-    const text = String(msg?.text || '');
-    const normalized = normalizeText(text);
-
-    const category = detectInterestCategory(text);
-    if (category) {
-      categoryScores[category] = (categoryScores[category] || 0) + 2;
-    }
-
-    const brands = extractBrandSignals(text);
-    for (const brand of brands) {
-      brandScores[brand] = (brandScores[brand] || 0) + 2;
-    }
-
-    if (
-      normalized.includes('uygun fiyat') ||
-      normalized.includes('fiyat performans') ||
-      normalized.includes('ucuz') ||
-      normalized.includes('daha ucuz') ||
-      normalized.includes('butce') ||
-      normalized.includes('bütce') ||
-      normalized.includes('butce') ||
-      normalized.includes('tl alti') ||
-      normalized.includes('tl alti')
-    ) {
-      priceSensitiveScore += 2;
-    }
-
-    if (
-      normalized.includes('premium') ||
-      normalized.includes('en iyi') ||
-      normalized.includes('kaliteli') ||
-      normalized.includes('ust seviye') ||
-      normalized.includes('ust duzey')
-    ) {
-      premiumScore += 1;
-    }
-
-    if (msg && Array.isArray(msg.products) && msg.products.length > 0) {
-      for (const product of msg.products) {
-        const pText = `${product.name || ''} ${product.short_reason || ''}`;
-        const pCategory = detectInterestCategory(pText);
-
-        if (pCategory) {
-          categoryScores[pCategory] = (categoryScores[pCategory] || 0) + 1;
-        }
-
-        const pBrands = extractBrandSignals(pText);
-        for (const brand of pBrands) {
-          brandScores[brand] = (brandScores[brand] || 0) + 1;
-        }
-      }
-    }
-  }
-
-  const topCategories = Object.entries(categoryScores)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name]) => name);
-
-  const topBrands = Object.entries(brandScores)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name]) => name);
-
-  let shoppingStyle = 'Henüz net değil';
-
-  if (priceSensitiveScore >= 3 && premiumScore < 2) {
-    shoppingStyle = 'Fiyat/performans odaklı';
-  } else if (premiumScore >= 3 && priceSensitiveScore < 2) {
-    shoppingStyle = 'Daha kaliteli ürünlere açık';
-  } else if (priceSensitiveScore >= 2 && premiumScore >= 2) {
-    shoppingStyle = 'Hem fiyatı hem kaliteyi dengelemeye çalışan';
-  }
-
-  return {
-    topCategories,
-    topBrands,
-    shoppingStyle,
-    hasStrongSignal: topCategories.length > 0 || topBrands.length > 0,
-  };
-}
-
-function buildUserPreferenceSummary(previousMessages = []) {
-  const profile = buildUserPreferenceProfile(previousMessages);
-
-  if (!profile.hasStrongSignal) {
-    return 'Kullanıcının alışveriş tercihleri henüz net değil.';
-  }
-
-  const parts = [];
-
-  if (profile.topCategories.length > 0) {
-    parts.push(`Öne çıkan ilgi alanları: ${profile.topCategories.join(', ')}`);
-  }
-
-  if (profile.topBrands.length > 0) {
-    parts.push(`Tekrarlayan marka ilgileri: ${profile.topBrands.join(', ')}`);
-  }
-
-  parts.push(`Alışveriş yaklaşımı: ${profile.shoppingStyle}`);
-
-  return parts.join('\n');
-}
 
 function isUserPreferenceQuestion(userMessage = '') {
   const text = normalizeText(userMessage);
@@ -2363,8 +2264,8 @@ function isGenericRecommendationRequest(userMessage = '') {
   );
 }
 
-function generatePreferenceInsightReply(previousMessages = []) {
-  const profile = buildUserPreferenceProfile(previousMessages);
+function generatePreferenceInsightReply(previousMessages = [], favoriteProducts = []) {
+  const profile = buildUserPreferenceProfile(previousMessages, favoriteProducts);
 
   if (!profile.hasStrongSignal) {
     return `Seni tanımaya başladım ama henüz güçlü bir alışveriş deseni oluşmadı.
@@ -2391,8 +2292,8 @@ function generatePreferenceInsightReply(previousMessages = []) {
   return `Seni şöyle tanıyorum:\n- ${bullets.join('\n- ')}`;
 }
 
-function buildPreferenceSeed(previousMessages = []) {
-  const profile = buildUserPreferenceProfile(previousMessages);
+function buildPreferenceSeed(previousMessages = [], favoriteProducts = []) {
+  const profile = buildUserPreferenceProfile(previousMessages, favoriteProducts);
 
   if (!profile.hasStrongSignal) {
     return '';
@@ -2502,7 +2403,43 @@ function extractBrandSignals(text = '') {
   return knownBrands.filter((brand) => t.includes(normalizeText(brand)));
 }
 
-function buildUserPreferenceProfile(previousMessages = []) {
+function buildFavoritePreferenceProfile(favoriteProducts = []) {
+  const categoryScores = {};
+  const brandScores = {};
+
+  for (const product of favoriteProducts) {
+    if (!product) continue;
+
+    const text = `${product.name || ''} ${product.short_reason || ''} ${product.platform || ''}`;
+
+    const category = detectInterestCategory(text);
+    if (category) {
+      categoryScores[category] = (categoryScores[category] || 0) + 3;
+    }
+
+    const brands = extractBrandSignals(text);
+    for (const brand of brands) {
+      brandScores[brand] = (brandScores[brand] || 0) + 3;
+    }
+  }
+
+  const topCategories = Object.entries(categoryScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  const topBrands = Object.entries(brandScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  return {
+    topCategories,
+    topBrands,
+  };
+}
+
+function buildUserPreferenceProfile(previousMessages = [], favoriteProducts = []) {
   const categoryScores = {};
   const brandScores = {};
   let priceSensitiveScore = 0;
@@ -2543,6 +2480,16 @@ function buildUserPreferenceProfile(previousMessages = []) {
       premiumScore += 1;
     }
 
+    const favoriteProfile = buildFavoritePreferenceProfile(favoriteProducts);
+
+    for (const category of favoriteProfile.topCategories) {
+      categoryScores[category] = (categoryScores[category] || 0) + 4;
+    }
+  
+    for (const brand of favoriteProfile.topBrands) {
+      brandScores[brand] = (brandScores[brand] || 0) + 4;
+    }
+
     if (msg && Array.isArray(msg.products) && msg.products.length > 0) {
       for (const product of msg.products) {
         const pText = `${product.name || ''} ${product.short_reason || ''}`;
@@ -2558,6 +2505,16 @@ function buildUserPreferenceProfile(previousMessages = []) {
         }
       }
     }
+  }
+
+  const favoriteProfile = buildFavoritePreferenceProfile(favoriteProducts);
+
+  for (const category of favoriteProfile.topCategories) {
+    categoryScores[category] = (categoryScores[category] || 0) + 4;
+  }
+
+  for (const brand of favoriteProfile.topBrands) {
+    brandScores[brand] = (brandScores[brand] || 0) + 4;
   }
 
   const topCategories = Object.entries(categoryScores)
@@ -2588,8 +2545,8 @@ function buildUserPreferenceProfile(previousMessages = []) {
   };
 }
 
-function buildUserPreferenceSummary(previousMessages = []) {
-  const profile = buildUserPreferenceProfile(previousMessages);
+function buildUserPreferenceSummary(previousMessages = [], favoriteProducts = []) {
+  const profile = buildUserPreferenceProfile(previousMessages, favoriteProducts);
 
   if (!profile.hasStrongSignal) {
     return 'Kullanıcının alışveriş tercihleri henüz net değil.';
