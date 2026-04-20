@@ -1451,19 +1451,6 @@ ${userMessage}
     }
   }
 
-  if (isUserPreferenceQuestion(userMessage)) {
-    const preferenceInsight = await generatePreferenceInsightReply({
-      previousMessages,
-      userProfile,
-    });
-
-    return {
-      assistantText: `${preferenceInsight.title}\n\n- ${preferenceInsight.bullets.join('\n- ')}`,
-      products: [],
-      actions: [],
-      comparison: null,
-    };
-  }
 
   const recentProducts = extractRecentProducts(previousMessages);
   const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
