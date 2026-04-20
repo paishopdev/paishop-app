@@ -620,7 +620,7 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
       name: p.name || '',
       price: p.price || '',
       platform: p.platform || '',
-      image: p.image || '',
+      image: p.image || p.thumbnail || p.productImage || '',
       link: p.link || '',
       short_reason: p.short_reason || '',
       rating: p.rating || null,
@@ -1846,19 +1846,20 @@ ${userMessage}
     userProfile,
     favoriteProducts,
   });
+  
   const finalProducts =
-  Array.isArray(answer.products) && answer.products.length > 0
-    ? enrichProductsWithSource(answer.products, searchedProducts)
-    : normalizeProducts(searchedProducts);
-
-if (isComparisonRequest && finalProducts.length >= 2) {
-  return {
-    assistantText: answer.assistant_text || 'Senin için seçenekleri karşılaştırdım.',
-    products: [],
-    actions: normalizeActions(answer.actions),
-    comparison: buildComparisonData(answer, finalProducts, userMessage),
-  };
-}
+    Array.isArray(answer.products) && answer.products.length > 0
+      ? enrichProductsWithSource(answer.products, searchedProducts)
+      : normalizeProducts(searchedProducts);
+  
+  if (isComparisonRequest && finalProducts.length >= 2) {
+    return {
+      assistantText: answer.assistant_text || 'Senin için seçenekleri karşılaştırdım.',
+      products: [],
+      actions: normalizeActions(answer.actions),
+      comparison: buildComparisonData(answer, finalProducts, userMessage),
+    };
+  }
 
 const displayProducts = isComparisonRequest ? [] : finalProducts;
 

@@ -260,12 +260,12 @@ const aiResult = await generateChatReply({
 
     chat.messages.push({
       role: 'assistant',
-      text: typeof safeAssistantText === 'string' ? safeAssistantText : '',
-      products: Array.isArray(safeProducts) ? safeProducts : [],
-      actions: Array.isArray(safeActions) ? safeActions : [],
-      comparison: safeComparison || null,
-      detailCard: safeDetailCard || null,
-      reviewCard: safeReviewCard || null,
+      text: typeof aiResult.assistantText === 'string' ? aiResult.assistantText : '',
+      products: Array.isArray(aiResult.products) ? aiResult.products : [],
+      actions: Array.isArray(aiResult.actions) ? aiResult.actions : [],
+      comparison: aiResult.comparison || null,
+      detailCard: aiResult.detailCard || null,
+      reviewCard: aiResult.reviewCard || null,
       contextProduct: null,
     });
 
