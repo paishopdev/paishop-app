@@ -1,4 +1,5 @@
 const axios = require('axios');
+const cheerio = require('cheerio');
 
 function parseReviewCount(value) {
   if (!value) return null;
@@ -27,44 +28,82 @@ function parseReviewCount(value) {
   return number;
 }
 
-function isValidHttpImage(value) {
+function isBlockedImageUrl(url) {
+  if (!url || typeof url !== 'string') return true;
+
+  const lower = url.toLowerCase();
+
   return (
-    typeof value === 'string' &&
-    value.startsWith('http') &&
-    !value.includes('gstatic.com/shopping?q=tbn:') &&
-    !value.includes('encrypted-tbn') &&
-    !value.endsWith('.svg')
+    !lower.startsWith('http') ||
+    lower.includes('encrypted-tbn') ||
+    lower.includes('gstatic.com/shopping?q=tbn') ||
+    lower.includes('serpapi.com')
   );
 }
 
 function extractImage(item) {
-  if (!item) return '';
+  if (!item || typeof item !== 'object') return '';
 
-  // ❌ serpapi proxy linkleri tamamen ignore et
-  if (
-    item.thumbnail &&
-    item.thumbnail.startsWith('http') &&
-    !item.thumbnail.includes('serpapi.com')
-  ) {
-    return item.thumbnail;
-  }
+  const candidates = [
+    ...(Array.isArray(item.serpapi_thumbnails) ? item.serpapi_thumbnails : []),
+    item.serpapi_thumbnail,
+    item.thumbnail,
+    ...(Array.isArray(item.thumbnails) ? item.thumbnails : []),
+    item.image,
+  ].filter(Boolean);
 
-  if (
-    item.serpapi_thumbnail &&
-    item.serpapi_thumbnail.startsWith('http') &&
-    !item.serpapi_thumbnail.includes('serpapi.com')
-  ) {
-    return item.serpapi_thumbnail;
-  }
-
-  if (Array.isArray(item.thumbnails)) {
-    const valid = item.thumbnails.find(
-      (img) => img.startsWith('http') && !img.includes('serpapi.com')
-    );
-    if (valid) return valid;
+  for (const img of candidates) {
+    if (!isBlockedImageUrl(img)) {
+      return img;
+    }
   }
 
   return '';
+}
+
+async function fetchImageFromProductPage(url) {
+  try {
+    if (!url || typeof url !== 'string' || !url.startsWith('http')) {
+      return '';
+    }
+
+    const response = await axios.get(url, {
+      timeout: 12000,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      },
+    });
+
+    const $ = cheerio.load(response.data);
+
+    const ogImage = $('meta[property="og:image"]').attr('content');
+    if (ogImage && !isBlockedImageUrl(ogImage)) {
+      return ogImage;
+    }
+
+    const twitterImage = $('meta[name="twitter:image"]').attr('content');
+    if (twitterImage && !isBlockedImageUrl(twitterImage)) {
+      return twitterImage;
+    }
+
+    const imgCandidates = $('img')
+      .map((_, el) => $(el).attr('src'))
+      .get()
+      .filter(Boolean);
+
+    for (const img of imgCandidates) {
+      if (img.startsWith('http') && !isBlockedImageUrl(img)) {
+        return img;
+      }
+    }
+
+    return '';
+  } catch (e) {
+    return '';
+  }
 }
 
 async function searchGoogleShopping(query) {
@@ -92,57 +131,28 @@ async function searchGoogleShopping(query) {
 
   console.log('FIRST SHOPPING RESULT:', JSON.stringify(results[0], null, 2));
 
-  return results.slice(0, 40).map((item) => {
-    const image = extractImage(item);
+  const mapped = await Promise.all(
+    results.slice(0, 40).map(async (item) => {
+      let image = extractImage(item);
 
-    return Promise.all(
-      results.slice(0, 40).map(async (item) => {
-        let image = extractImage(item);
-    
-        // ❗ eğer serpapi linkiyse veya boşsa → gerçek sayfadan çek
-        if (!image || image.includes('serpapi.com')) {
-          const fallback = await fetchImageFromProductPage(
-            item.product_link || item.link
-          );
-          if (fallback) image = fallback;
-        }
-    
-        return {
-          name: item.title || 'Unknown product',
-          price:
-            item.price ||
-            item.extracted_price?.toString() ||
-            'Fiyat yok',
-          platform: item.source || 'Unknown store',
-          image,
-          link: item.product_link || item.link || '',
-          rating: item.rating || null,
-          reviews: parseReviewCount(item.reviews),
-          short_reason: '',
-        };
-      })
-    );
-  }   );
-  const cheerio = require('cheerio');
+      if (!image) {
+        image = await fetchImageFromProductPage(item.product_link || item.link || '');
+      }
 
-async function fetchImageFromProductPage(url) {
-  try {
-    const { data } = await axios.get(url, { timeout: 8000 });
-    const $ = cheerio.load(data);
+      return {
+        name: item.title || 'Unknown product',
+        price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
+        platform: item.source || 'Unknown store',
+        image: image || '',
+        link: item.product_link || item.link || '',
+        rating: item.rating || null,
+        reviews: parseReviewCount(item.reviews),
+        short_reason: '',
+      };
+    })
+  );
 
-    // og:image en güvenilir
-    const og = $('meta[property="og:image"]').attr('content');
-    if (og && og.startsWith('http')) return og;
-
-    // fallback img
-    const img = $('img').first().attr('src');
-    if (img && img.startsWith('http')) return img;
-
-    return '';
-  } catch (e) {
-    return '';
-  }
-}
+  return mapped;
 }
 
 module.exports = { searchGoogleShopping };
