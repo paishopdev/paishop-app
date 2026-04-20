@@ -605,7 +605,11 @@ function isComparisonLikeRequest(userMessage = '') {
   );
 }
 
+
+
 function buildComparisonData(answer, finalProducts = [], userMessage = '') {
+  
+  
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
 
   if (!isComparisonRequest) {
@@ -1527,11 +1531,43 @@ ${userMessage}
   );
 
   if (actionCommand === 'compare') {
-    const compareProducts =
+    const compareBaseProducts =
       stableBatchProducts.length >= 2 ? stableBatchProducts : comparisonProducts;
-
-    const deterministicComparison = buildDeterministicComparison(compareProducts);
-
+  
+    if (!compareBaseProducts || compareBaseProducts.length < 2) {
+      return {
+        assistantText: 'Karşılaştırma yapabilmem için önce aynı kategoride en az 2 ürün göstermem gerekiyor.',
+        products: [],
+        actions: [],
+        comparison: null,
+      };
+    }
+  
+    const compareQuery = compareBaseProducts
+      .map((p) => p.name || '')
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' ');
+  
+    let compareSearchResults = [];
+  
+    if (compareQuery.trim().isNotEmpty) {
+      const rawCompareResults = await searchWithFallback(compareQuery, compareQuery);
+  
+      compareSearchResults = scoreAndRankProducts(
+        rawCompareResults,
+        compareQuery,
+        compareQuery
+      ).slice(0, 10);
+    }
+  
+    const enrichedCompareProducts = enrichProductsWithSource(
+      compareBaseProducts,
+      compareSearchResults
+    );
+  
+    const deterministicComparison = buildDeterministicComparison(enrichedCompareProducts);
+  
     if (deterministicComparison) {
       return {
         assistantText: `${deterministicComparison.winner} öne çıkıyor. Senin için seçenekleri net şekilde karşılaştırdım.`,
@@ -1540,7 +1576,7 @@ ${userMessage}
         comparison: deterministicComparison,
       };
     }
-
+  
     return {
       assistantText: 'Karşılaştırma yapabilmem için önce aynı kategoride en az 2 ürün göstermem gerekiyor.',
       products: [],
