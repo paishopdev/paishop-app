@@ -95,16 +95,54 @@ async function searchGoogleShopping(query) {
   return results.slice(0, 40).map((item) => {
     const image = extractImage(item);
 
-return {
-  name: item.title || 'Unknown product',
-  price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
-  platform: item.source || 'Unknown store',
-  image,
-  link: item.product_link || item.link || '',
-  rating: item.rating || null,
-  reviews: parseReviewCount(item.reviews),
-};
-  });
+    return Promise.all(
+      results.slice(0, 40).map(async (item) => {
+        let image = extractImage(item);
+    
+        // ❗ eğer serpapi linkiyse veya boşsa → gerçek sayfadan çek
+        if (!image || image.includes('serpapi.com')) {
+          const fallback = await fetchImageFromProductPage(
+            item.product_link || item.link
+          );
+          if (fallback) image = fallback;
+        }
+    
+        return {
+          name: item.title || 'Unknown product',
+          price:
+            item.price ||
+            item.extracted_price?.toString() ||
+            'Fiyat yok',
+          platform: item.source || 'Unknown store',
+          image,
+          link: item.product_link || item.link || '',
+          rating: item.rating || null,
+          reviews: parseReviewCount(item.reviews),
+          short_reason: '',
+        };
+      })
+    );
+  }   );
+  const cheerio = require('cheerio');
+
+async function fetchImageFromProductPage(url) {
+  try {
+    const { data } = await axios.get(url, { timeout: 8000 });
+    const $ = cheerio.load(data);
+
+    // og:image en güvenilir
+    const og = $('meta[property="og:image"]').attr('content');
+    if (og && og.startsWith('http')) return og;
+
+    // fallback img
+    const img = $('img').first().attr('src');
+    if (img && img.startsWith('http')) return img;
+
+    return '';
+  } catch (e) {
+    return '';
+  }
+}
 }
 
 module.exports = { searchGoogleShopping };

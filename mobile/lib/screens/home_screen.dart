@@ -1334,18 +1334,16 @@ debugPrint("COMPARISON UI DATA: $comparison");
               borderRadius: BorderRadius.circular(18),
               child: imageUrl.isNotEmpty
                   ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
-                        return Center(
-                          child: Icon(
-                            Icons.image_outlined,
-                            color: Colors.grey.shade500,
-                            size: 28,
-                          ),
-                        );
-                      },
-                    )
+  imageUrl,
+  fit: BoxFit.cover,
+  errorBuilder: (context, error, stackTrace) {
+    debugPrint("IMAGE FAIL: $imageUrl");
+    return Container(
+      color: Colors.grey.shade200,
+      child: const Icon(Icons.image_not_supported),
+    );
+  },
+)
                   : Center(
                       child: Icon(
                         Icons.shopping_bag_outlined,
