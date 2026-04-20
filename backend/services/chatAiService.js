@@ -2399,7 +2399,7 @@ function generatePreferenceInsightReply(previousMessages = []) {
     bullets.push(`Alışveriş yaklaşımın: ${profile.shoppingStyle}`);
   }
 
-  bullets.push('Bunu sohbet geçmişindeki aramalarına ve baktığın ürünlere göre çıkarıyorum.');
+  bullets.push('Bunu geçmiş aramalarına ve baktığın ürünlere göre çıkarıyorum.');
 
   return `Seni şöyle tanıyorum:\n- ${bullets.join('\n- ')}`;
 }
@@ -2624,34 +2624,7 @@ function buildUserPreferenceSummary(previousMessages = []) {
 
   return parts.join('\n');
 }
-
-function generatePreferenceInsightReply(previousMessages = []) {
-  const profile = buildUserPreferenceProfile(previousMessages);
-
-  if (!profile.hasStrongSignal) {
-    return `Seni tanımaya başladım ama henüz güçlü bir alışveriş deseni oluşmadı.
-- Birkaç farklı ürün daha aradığında ilgilerini daha net çıkarabilirim.
-- Şu an için bana en çok baktığın kategori veya bütçe tarzını biraz daha göstermen lazım.`;
-  }
-
-  const bullets = [];
-
-  if (profile.topCategories.length > 0) {
-    bullets.push(`En çok ilgilendiğin alanlar: ${profile.topCategories.join(', ')}`);
-  }
-
-  if (profile.topBrands.length > 0) {
-    bullets.push(`Tekrarlayan marka ilgilerin: ${profile.topBrands.join(', ')}`);
-  }
-
-  if (profile.shoppingStyle && profile.shoppingStyle !== 'Henüz net değil') {
-    bullets.push(`Alışveriş yaklaşımın: ${profile.shoppingStyle}`);
-  }
-
-  bullets.push('Bunu geçmiş aramalarına ve baktığın ürünlere göre çıkarıyorum.');
-
-  return `Seni şöyle tanıyorum:\n- ${bullets.join('\n- ')}`;
-}{
+{
   const preferenceSummary = buildUserPreferenceSummary(previousMessages);
   const profileText = formatUserProfile(userProfile);
 
