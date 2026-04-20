@@ -1,5 +1,36 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
+function buildCrossChatMemory(currentChat, allChats = []) {
+  const currentChatId = String(currentChat?._id || '');
+
+  const currentMessages = Array.isArray(currentChat?.messages)
+    ? currentChat.messages
+    : [];
+
+  const otherMessages = allChats
+    .filter((c) => String(c._id) !== currentChatId)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+    .flatMap((c) =>
+      Array.isArray(c.messages)
+        ? c.messages.map((m) => ({
+            ...(m.toObject?.() || m),
+            _sourceChatId: String(c._id),
+          }))
+        : []
+    );
+
+  const normalizedCurrentMessages = currentMessages.map((m) => ({
+    ...(m.toObject?.() || m),
+    _sourceChatId: currentChatId,
+  }));
+
+  const merged = [
+    ...otherMessages.slice(-40),
+    ...normalizedCurrentMessages,
+  ];
+
+  return merged.slice(-60);
+}
 const { searchGoogleShopping } = require('../services/googleShoppingService');
 
 const {
