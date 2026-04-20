@@ -38,35 +38,30 @@ function isValidHttpImage(value) {
 }
 
 function extractImage(item) {
-  if (!item || typeof item !== 'object') return '';
+  if (!item) return '';
 
-  if (Array.isArray(item.serpapi_thumbnails) && item.serpapi_thumbnails.length > 0) {
-    const valid = item.serpapi_thumbnails.find((img) => isValidHttpImage(img));
-    if (valid) return valid;
-  }
-
-  if (isValidHttpImage(item.serpapi_thumbnail)) {
-    return item.serpapi_thumbnail;
-  }
-
-  if (isValidHttpImage(item.thumbnail)) {
+  // ❌ serpapi proxy linkleri tamamen ignore et
+  if (
+    item.thumbnail &&
+    item.thumbnail.startsWith('http') &&
+    !item.thumbnail.includes('serpapi.com')
+  ) {
     return item.thumbnail;
   }
 
-  if (Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
-    const valid = item.thumbnails.find((img) => isValidHttpImage(img));
-    if (valid) return valid;
+  if (
+    item.serpapi_thumbnail &&
+    item.serpapi_thumbnail.startsWith('http') &&
+    !item.serpapi_thumbnail.includes('serpapi.com')
+  ) {
+    return item.serpapi_thumbnail;
   }
 
-  if (Array.isArray(item.rich_snippet?.top?.detected_extensions?.images)) {
-    const valid = item.rich_snippet.top.detected_extensions.images.find((img) =>
-      isValidHttpImage(img)
+  if (Array.isArray(item.thumbnails)) {
+    const valid = item.thumbnails.find(
+      (img) => img.startsWith('http') && !img.includes('serpapi.com')
     );
     if (valid) return valid;
-  }
-
-  if (isValidHttpImage(item.image)) {
-    return item.image;
   }
 
   return '';
@@ -100,19 +95,15 @@ async function searchGoogleShopping(query) {
   return results.slice(0, 40).map((item) => {
     const image = extractImage(item);
 
-    return {
-      name: item.title || 'Unknown product',
-      price:
-        item.price ||
-        item.extracted_price?.toString() ||
-        'Fiyat yok',
-      platform: item.source || 'Unknown store',
-      image,
-      link: item.product_link || item.link || '',
-      rating: item.rating || null,
-      reviews: parseReviewCount(item.reviews),
-      short_reason: '',
-    };
+return {
+  name: item.title || 'Unknown product',
+  price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
+  platform: item.source || 'Unknown store',
+  image,
+  link: item.product_link || item.link || '',
+  rating: item.rating || null,
+  reviews: parseReviewCount(item.reviews),
+};
   });
 }
 

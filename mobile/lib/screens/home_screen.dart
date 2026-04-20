@@ -1244,6 +1244,9 @@ Widget buildMessageBubble(ChatMessage message) {
 }
 
 Widget buildComparisonBox(Map<String, dynamic> comparison) {
+
+debugPrint("COMPARISON UI DATA: $comparison");
+
   final winner = (comparison["winner"] ?? "").toString().trim();
   final summary = (comparison["summary"] ?? "").toString().trim();
 
