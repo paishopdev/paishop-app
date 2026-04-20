@@ -17,6 +17,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 
 
@@ -225,17 +226,35 @@ Future<void> pickImageAndSearch() async {
     );
 
     if (image == null) return;
+    if (!mounted) return;
 
-    if (currentChatId.isEmpty) {
+    String chatIdForRequest = currentChatId;
+
+    if (chatIdForRequest.isEmpty) {
       await createNewChatIfNeeded("Görselle ürün arama");
+      chatIdForRequest = currentChatId;
     }
 
+    if (chatIdForRequest.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        messages.add(
+          ChatMessage(
+            text: "Sohbet oluşturulamadı. Tekrar deneyelim.",
+            isUser: false,
+          ),
+        );
+      });
+      return;
+    }
+
+    if (!mounted) return;
     setState(() {
       loading = true;
     });
 
     final result = await ChatService.sendImageMessage(
-      chatId: currentChatId,
+      chatId: chatIdForRequest,
       imageFile: image,
     );
 
@@ -253,6 +272,7 @@ Future<void> pickImageAndSearch() async {
         ? List<String>.from(result["actions"])
         : <String>[];
 
+    if (!mounted) return;
     setState(() {
       messages.add(
         ChatMessage(
@@ -266,10 +286,21 @@ Future<void> pickImageAndSearch() async {
 
     scrollToBottom();
     await loadChatHistory();
-    await saveChatLastSeen(currentChatId);
+    await saveChatLastSeen(chatIdForRequest);
   } catch (e) {
     debugPrint("IMAGE SEARCH ERROR: $e");
+
+    if (!mounted) return;
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: "Görsel işlenirken bir sorun oldu. Tekrar deneyelim.",
+          isUser: false,
+        ),
+      );
+    });
   } finally {
+    if (!mounted) return;
     setState(() {
       loading = false;
     });
@@ -283,6 +314,7 @@ Future<void> pickImagesFromGallery() async {
     );
 
     if (images.isEmpty) return;
+    if (!mounted) return;
 
     final List<XFile> merged = [
       ...selectedGalleryImages,
@@ -305,15 +337,25 @@ Future<void> pickImagesFromGallery() async {
     });
   } catch (e) {
     debugPrint("GALLERY PICK ERROR: $e");
+
+    if (!mounted) return;
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: "Galeriden görsel seçerken bir sorun oldu.",
+          isUser: false,
+        ),
+      );
+    });
   }
 }
-
 Future<void> sendGalleryImagesWithPrompt() async {
   final query = controller.text.trim();
 
   if (selectedGalleryImages.isEmpty) return;
 
   if (query.isEmpty) {
+    if (!mounted) return;
     setState(() {
       messages.add(
         ChatMessage(
@@ -326,12 +368,29 @@ Future<void> sendGalleryImagesWithPrompt() async {
   }
 
   try {
-    if (currentChatId.isEmpty) {
+    String chatIdForRequest = currentChatId;
+
+    if (chatIdForRequest.isEmpty) {
       await createNewChatIfNeeded("Görselle ürün arama");
+      chatIdForRequest = currentChatId;
+    }
+
+    if (chatIdForRequest.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        messages.add(
+          ChatMessage(
+            text: "Sohbet oluşturulamadı. Tekrar deneyelim.",
+            isUser: false,
+          ),
+        );
+      });
+      return;
     }
 
     final pickedImages = List<XFile>.from(selectedGalleryImages);
 
+    if (!mounted) return;
     setState(() {
       messages.add(
         ChatMessage(
@@ -348,7 +407,7 @@ Future<void> sendGalleryImagesWithPrompt() async {
     scrollToBottom();
 
     final result = await ChatService.sendImageContextMessage(
-      chatId: currentChatId,
+      chatId: chatIdForRequest,
       message: query,
       images: pickedImages,
     );
@@ -367,6 +426,7 @@ Future<void> sendGalleryImagesWithPrompt() async {
         ? List<String>.from(result["actions"])
         : <String>[];
 
+    if (!mounted) return;
     setState(() {
       messages.add(
         ChatMessage(
@@ -380,26 +440,26 @@ Future<void> sendGalleryImagesWithPrompt() async {
 
     scrollToBottom();
     await loadChatHistory();
-    await saveChatLastSeen(currentChatId);
+    await saveChatLastSeen(chatIdForRequest);
   } catch (e) {
     debugPrint("IMAGE CONTEXT ERROR: $e");
 
+    if (!mounted) return;
     setState(() {
       messages.add(
         ChatMessage(
-          text:
-              "Görselleri işlerken bir sorun oldu. İstersen tekrar deneyelim.",
+          text: "Görselleri işlerken bir sorun oldu. İstersen tekrar deneyelim.",
           isUser: false,
         ),
       );
     });
   } finally {
+    if (!mounted) return;
     setState(() {
       loading = false;
     });
   }
 }
-
 void showImageSourcePicker() {
   showModalBottomSheet(
     context: context,
@@ -534,28 +594,46 @@ void initState() {
   });
 }
 
-Widget buildDrawerAvatar() {
-  final effectiveName = (displayName.isNotEmpty ? displayName : firstName).trim();
-  final initial = effectiveName.isNotEmpty ? effectiveName[0].toUpperCase() : 'P';
+ImageProvider? getAvatarImageProvider(String? path) {
+  if (path == null || path.trim().isEmpty) return null;
 
-  if (avatarPath != null && avatarPath!.isNotEmpty) {
-    final file = File(avatarPath!);
-    if (file.existsSync()) {
-      return CircleAvatar(
-        radius: 26,
-        backgroundImage: FileImage(file),
-      );
-    }
+  final cleanPath = path.trim();
+
+  if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+    return NetworkImage(cleanPath);
+  }
+
+  if (kIsWeb) {
+    return NetworkImage(cleanPath);
+  }
+
+  return FileImage(File(cleanPath));
+}
+
+String getAvatarInitial(String? name) {
+  final value = (name ?? '').trim();
+  if (value.isEmpty) return 'P';
+  return value[0].toUpperCase();
+}
+
+Widget buildDrawerAvatar() {
+  final imageProvider = getAvatarImageProvider(avatarPath);
+
+  if (imageProvider != null) {
+    return CircleAvatar(
+      radius: 26,
+      backgroundImage: imageProvider,
+    );
   }
 
   return CircleAvatar(
     radius: 26,
-    backgroundColor: primaryColor.withOpacity(0.10),
+    backgroundColor: primaryColor.withOpacity(0.12),
     child: Text(
-      initial,
+      getAvatarInitial(firstName),
       style: TextStyle(
         color: primaryColor,
-        fontSize: 22,
+        fontSize: 18,
         fontWeight: FontWeight.w800,
       ),
     ),
@@ -1166,10 +1244,12 @@ Widget buildMessageBubble(ChatMessage message) {
 }
 
 Widget buildComparisonBox(Map<String, dynamic> comparison) {
-  final winner = (comparison["winner"] ?? "").toString();
+  final winner = (comparison["winner"] ?? "").toString().trim();
+  final summary = (comparison["summary"] ?? "").toString().trim();
+
   final highlights = (comparison["highlights"] as List? ?? [])
-      .map((e) => e.toString())
-      .where((e) => e.trim().isNotEmpty)
+      .map((e) => e.toString().trim())
+      .where((e) => e.isNotEmpty)
       .take(3)
       .toList();
 
@@ -1177,25 +1257,57 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
       .map((e) => Map<String, dynamic>.from(e))
       .toList();
 
-  Widget buildHighlightChip(String text) {
+  if (products.isEmpty && winner.isEmpty && highlights.isEmpty && summary.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  Widget buildBadge(String text, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: primaryColor.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.check_circle_rounded, size: 15, color: primaryColor),
+          Icon(icon, size: 14, color: primaryColor),
           const SizedBox(width: 6),
-          Flexible(
+          Text(
+            text,
+            style: TextStyle(
+              color: primaryColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildHighlight(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.check_circle_rounded, size: 16, color: primaryColor),
+          const SizedBox(width: 8),
+          Expanded(
             child: Text(
               text,
               style: TextStyle(
                 color: Colors.black87,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
+                height: 1.35,
               ),
             ),
           ),
@@ -1204,175 +1316,298 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
     );
   }
 
-  Widget buildCompareCard(Map<String, dynamic> item, bool isWinnerCard) {
+  Widget buildImage(String imageUrl, bool isWinnerCard) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      height: 110,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFFF4F5FA),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) {
+                        return Center(
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: Colors.grey.shade500,
+                            size: 28,
+                          ),
+                        );
+                      },
+                    )
+                  : Center(
+                      child: Icon(
+                        Icons.shopping_bag_outlined,
+                        color: Colors.grey.shade500,
+                        size: 28,
+                      ),
+                    ),
+            ),
+          ),
+          if (isWinnerCard)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.workspace_premium_rounded,
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                    SizedBox(width: 5),
+                    Text(
+                      "Kazanan",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildProductCard(Map<String, dynamic> item) {
+    final name = (item["name"] ?? "").toString().trim();
+    final price = (item["price"] ?? "").toString().trim();
+    final platform = (item["platform"] ?? "").toString().trim();
+    final image = (item["image"] ?? "").toString().trim();
+    final shortReason = (item["short_reason"] ?? "").toString().trim();
+    final isWinnerCard = name == winner;
+
+    return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isWinnerCard ? primaryColor.withOpacity(0.08) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: isWinnerCard
               ? primaryColor.withOpacity(0.22)
               : Colors.grey.shade200,
+          width: isWinnerCard ? 1.4 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.035),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: isWinnerCard
-                  ? primaryColor.withOpacity(0.14)
-                  : Colors.grey.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isWinnerCard
-                  ? Icons.workspace_premium_rounded
-                  : Icons.shopping_bag_outlined,
-              color: isWinnerCard ? primaryColor : Colors.grey.shade700,
-              size: 20,
+          buildImage(image, isWinnerCard),
+          const SizedBox(height: 10),
+          Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              height: 1.3,
+              color: Colors.black87,
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item["name"] ?? "",
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  item["price"] ?? "",
-                  style: TextStyle(
-                    color: primaryColor,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 8),
+          Text(
+            price.isNotEmpty ? price : "Fiyat yok",
+            style: TextStyle(
+              color: primaryColor,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          if ((item["platform"] ?? "").toString().isNotEmpty)
+          const SizedBox(height: 8),
+          if (platform.isNotEmpty)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                item["platform"] ?? "",
+                platform,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 10.5,
                   color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
+          if (shortReason.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              shortReason,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 11.5,
+                height: 1.35,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
+  Map<String, dynamic>? winnerProduct;
+  for (final item in products) {
+    if ((item["name"] ?? "").toString().trim() == winner) {
+      winnerProduct = item;
+      break;
+    }
+  }
+
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    padding: const EdgeInsets.all(14),
+    padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(26),
       border: Border.all(color: Colors.grey.shade200),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withOpacity(0.04),
-          blurRadius: 12,
-          offset: const Offset(0, 5),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
         ),
       ],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(Icons.balance_rounded, color: primaryColor, size: 18),
-            const SizedBox(width: 8),
-            const Text(
-              "Shopi Karşılaştırdı",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        if (winner.isNotEmpty) ...[
-          const SizedBox(height: 12),
+        buildBadge("Shopi Karşılaştırdı", Icons.auto_awesome_rounded),
+        if (winnerProduct != null) ...[
+          const SizedBox(height: 14),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: primaryColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                colors: [
+                  primaryColor.withOpacity(0.14),
+                  primaryColor.withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: primaryColor.withOpacity(0.15)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.workspace_premium_rounded,
-                  color: primaryColor,
-                  size: 20,
+                buildBadge("En iyi seçim", Icons.workspace_premium_rounded),
+                const SizedBox(height: 12),
+                buildImage(
+                  (winnerProduct["image"] ?? "").toString().trim(),
+                  true,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    "En iyi seçim: $winner",
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 14,
-                    ),
+                const SizedBox(height: 12),
+                Text(
+                  (winnerProduct["name"] ?? "").toString().trim(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                    color: Colors.black87,
                   ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  (winnerProduct["price"] ?? "").toString().trim(),
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (summary.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    summary,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12.5,
+                      height: 1.4,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ],
         if (highlights.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: highlights.map(buildHighlightChip).toList(),
-          ),
+          const SizedBox(height: 14),
+          ...highlights.map((e) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: buildHighlight(e),
+              )),
         ],
         if (products.isNotEmpty) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           const Text(
-            "Karşılaştırılan ürünler",
+            "Tüm ürünler",
             style: TextStyle(
-              fontWeight: FontWeight.w700,
               fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 10),
-          ...products.map((item) {
-            final isWinnerCard = (item["name"] ?? "") == winner;
-            return buildCompareCard(item, isWinnerCard);
-          }),
+          const SizedBox(height: 12),
+          GridView.builder(
+            itemCount: products.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 0.66,
+            ),
+            itemBuilder: (context, index) {
+              return buildProductCard(products[index]);
+            },
+          ),
         ],
       ],
     ),
   );
 }
+
 
 Widget buildDetailCard(Map<String, dynamic> detailCard) {
   final product = detailCard["product"] != null

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/profile_service.dart';
@@ -37,17 +38,29 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   }
 
   Future<void> pickImage() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
 
-    if (file == null) return;
+      if (file == null) return;
+      if (!mounted) return;
 
-    setState(() {
-      avatarPath = file.path;
-    });
+      setState(() {
+        avatarPath = file.path;
+      });
+    } catch (e) {
+      debugPrint("PROFILE IMAGE PICK ERROR: $e");
+
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: 'Fotoğraf seçilirken bir sorun oldu',
+        isError: true,
+      );
+    }
   }
 
   Future<void> save() async {
@@ -62,11 +75,22 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       return;
     }
 
-    await ProfileService.saveDisplayName(name);
-    await ProfileService.saveAvatarPath(avatarPath);
+    try {
+      await ProfileService.saveDisplayName(name);
+      await ProfileService.saveAvatarPath(avatarPath);
 
-    if (!mounted) return;
-    Navigator.pop(context);
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint("PROFILE SAVE ERROR: $e");
+
+      if (!mounted) return;
+      showAppNotice(
+        context,
+        message: 'Profil kaydedilemedi',
+        isError: true,
+      );
+    }
   }
 
   Widget buildAvatar() {
@@ -74,14 +98,27 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ? nameController.text.trim()[0].toUpperCase()
         : 'P';
 
-    if (avatarPath != null && avatarPath!.isNotEmpty) {
-      final file = File(avatarPath!);
-      if (file.existsSync()) {
+    if (avatarPath != null && avatarPath!.trim().isNotEmpty) {
+      final path = avatarPath!.trim();
+
+      if (path.startsWith('http://') || path.startsWith('https://')) {
         return CircleAvatar(
           radius: 42,
-          backgroundImage: FileImage(file),
+          backgroundImage: NetworkImage(path),
         );
       }
+
+      if (kIsWeb) {
+        return CircleAvatar(
+          radius: 42,
+          backgroundImage: NetworkImage(path),
+        );
+      }
+
+      return CircleAvatar(
+        radius: 42,
+        backgroundImage: FileImage(File(path)),
+      );
     }
 
     return CircleAvatar(
@@ -144,6 +181,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 const SizedBox(height: 20),
                 TextField(
                   controller: nameController,
+                  onChanged: (_) {
+                    setState(() {});
+                  },
                   decoration: InputDecoration(
                     hintText: 'Görünen ad',
                     prefixIcon: const Icon(Icons.person_outline_rounded),

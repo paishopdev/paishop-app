@@ -524,6 +524,52 @@ function normalizeProducts(products) {
   }));
 }
 
+function enrichProductsWithSource(products = [], sourceProducts = []) {
+  if (!Array.isArray(products) || products.length === 0) return [];
+  if (!Array.isArray(sourceProducts) || sourceProducts.length === 0) {
+    return normalizeProducts(products);
+  }
+
+  const normalizedProducts = normalizeProducts(products);
+  const normalizedSource = normalizeProducts(sourceProducts);
+
+  return normalizedProducts.map((product, index) => {
+    let sourceMatch = null;
+
+    if (typeof product.index === 'number' && product.index > 0) {
+      sourceMatch = normalizedSource[product.index - 1] || null;
+    }
+
+    if (!sourceMatch && product.name) {
+      const targetName = normalizeText(product.name);
+      sourceMatch =
+          normalizedSource.find((item) =>
+            normalizeText(item.name || '') === targetName
+          ) ||
+          normalizedSource.find((item) =>
+            normalizeText(item.name || '').includes(targetName) ||
+            targetName.includes(normalizeText(item.name || ''))
+          ) ||
+          null;
+    }
+
+    if (!sourceMatch) {
+      sourceMatch = normalizedSource[index] || null;
+    }
+
+    return {
+      ...product,
+      price: product.price || sourceMatch?.price || '',
+      platform: product.platform || sourceMatch?.platform || '',
+      image: product.image || sourceMatch?.image || '',
+      link: product.link || sourceMatch?.link || '',
+      rating: product.rating || sourceMatch?.rating || null,
+      reviews: product.reviews || sourceMatch?.reviews || null,
+      short_reason: product.short_reason || sourceMatch?.short_reason || '',
+    };
+  });
+}
+
 function buildFallbackActions(products = [], planner = {}, userMessage = '') {
   if (!products || products.length === 0) {
     return [];
@@ -566,16 +612,20 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
     return null;
   }
 
-  const compareProducts = filterProductsToSameCategory(finalProducts || [], userMessage)
-  .slice(0, 3)
-  .map((p) => ({
-    name: p.name || '',
-    price: p.price || '',
-    platform: p.platform || '',
-    image: p.image || '',
-    link: p.link || '',
-    short_reason: p.short_reason || '',
-  }));
+  const compareProducts = normalizeProducts(
+    filterProductsToSameCategory(finalProducts || [], userMessage)
+  )
+    .slice(0, 4)
+    .map((p) => ({
+      name: p.name || '',
+      price: p.price || '',
+      platform: p.platform || '',
+      image: p.image || '',
+      link: p.link || '',
+      short_reason: p.short_reason || '',
+      rating: p.rating || null,
+      reviews: p.reviews || null,
+    }));
 
   if (compareProducts.length === 0) {
     return null;
@@ -1099,6 +1149,8 @@ function buildDeterministicComparison(products = []) {
       image: p.image || '',
       link: p.link || '',
       short_reason: p.short_reason || '',
+      rating: p.rating || null,
+      reviews: p.reviews || null,
     })),
   };
 }
@@ -1440,9 +1492,9 @@ ${userMessage}
       });
 
       const finalProducts =
-        Array.isArray(answer.products) && answer.products.length > 0
-          ? normalizeProducts(answer.products)
-          : normalizeProducts(searchedProducts);
+  Array.isArray(answer.products) && answer.products.length > 0
+    ? enrichProductsWithSource(answer.products, searchedProducts)
+    : normalizeProducts(searchedProducts);
 
       const finalActions =
         finalProducts.length === 0
@@ -1794,31 +1846,30 @@ ${userMessage}
     userProfile,
     favoriteProducts,
   });
-
-  if (isComparisonRequest && comparisonProducts.length >= 2) {
-    return {
-      assistantText: answer.assistant_text || 'Senin için seçenekleri karşılaştırdım.',
-      products: [],
-      actions: normalizeActions(answer.actions),
-      comparison: buildComparisonData(answer, comparisonProducts, userMessage),
-    };
-  }
-
   const finalProducts =
-    Array.isArray(answer.products) && answer.products.length > 0
-      ? normalizeProducts(answer.products)
-      : normalizeProducts(searchedProducts);
+  Array.isArray(answer.products) && answer.products.length > 0
+    ? enrichProductsWithSource(answer.products, searchedProducts)
+    : normalizeProducts(searchedProducts);
 
-  const displayProducts = isComparisonRequest ? [] : finalProducts;
+if (isComparisonRequest && finalProducts.length >= 2) {
+  return {
+    assistantText: answer.assistant_text || 'Senin için seçenekleri karşılaştırdım.',
+    products: [],
+    actions: normalizeActions(answer.actions),
+    comparison: buildComparisonData(answer, finalProducts, userMessage),
+  };
+}
 
-  const finalActions =
-    displayProducts.length === 0
-      ? (Array.isArray(answer.actions) && answer.actions.length > 0
-          ? answer.actions
-          : [])
-      : (Array.isArray(answer.actions) && answer.actions.length > 0
-          ? answer.actions
-          : buildFallbackActions(displayProducts, planner, userMessage));
+const displayProducts = isComparisonRequest ? [] : finalProducts;
+
+const finalActions =
+  displayProducts.length === 0
+    ? (Array.isArray(answer.actions) && answer.actions.length > 0
+        ? answer.actions
+        : [])
+    : (Array.isArray(answer.actions) && answer.actions.length > 0
+        ? answer.actions
+        : buildFallbackActions(displayProducts, planner, userMessage));
 
   const finalAssistantText =
     referenceAction?.assistantText && referencedProduct

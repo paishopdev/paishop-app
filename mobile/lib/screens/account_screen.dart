@@ -5,6 +5,7 @@ import '../services/profile_service.dart';
 import '../utils/app_notice.dart';
 import 'profile_edit_screen.dart';
 import 'profile_screen.dart';
+import 'package:flutter/foundation.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -70,33 +71,47 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Widget buildAvatar() {
-    final effectiveName = (displayName.isNotEmpty ? displayName : firstName).trim();
-    final initial = effectiveName.isNotEmpty ? effectiveName[0].toUpperCase() : 'P';
+Widget buildAvatar() {
+  final initial = displayName.trim().isNotEmpty
+      ? displayName.trim()[0].toUpperCase()
+      : 'P';
 
-    if (avatarPath != null && avatarPath!.isNotEmpty) {
-      final file = File(avatarPath!);
-      if (file.existsSync()) {
-        return CircleAvatar(
-          radius: 34,
-          backgroundImage: FileImage(file),
-        );
-      }
+  if (avatarPath != null && avatarPath!.trim().isNotEmpty) {
+    final path = avatarPath!.trim();
+
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return CircleAvatar(
+        radius: 42,
+        backgroundImage: NetworkImage(path),
+      );
+    }
+
+    if (kIsWeb) {
+      return CircleAvatar(
+        radius: 42,
+        backgroundImage: NetworkImage(path),
+      );
     }
 
     return CircleAvatar(
-      radius: 34,
-      backgroundColor: primaryColor.withOpacity(0.12),
-      child: Text(
-        initial,
-        style: TextStyle(
-          color: primaryColor,
-          fontSize: 28,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+      radius: 42,
+      backgroundImage: FileImage(File(path)),
     );
   }
+
+  return CircleAvatar(
+    radius: 42,
+    backgroundColor: primaryColor.withOpacity(0.12),
+    child: Text(
+      initial,
+      style: TextStyle(
+        color: primaryColor,
+        fontSize: 30,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
+}
 
   Widget buildSectionCard(List<Widget> children) {
     return Container(
