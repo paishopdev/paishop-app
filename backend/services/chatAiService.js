@@ -1928,14 +1928,11 @@ const finalActions =
     }
   }
 
-  const compareSourceProducts =
-    isComparisonRequest && comparisonProducts.length >= 2
-      ? comparisonProducts
-      : finalProducts;
+  const compareSourceProducts = finalProducts;
 
   const comparison = buildComparisonData(
     answer,
-    compareSourceProducts,
+    finalProducts,
     userMessage
   );
 
