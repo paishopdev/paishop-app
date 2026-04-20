@@ -169,6 +169,8 @@ const sendChatMessage = async (req, res) => {
       return res.status(404).json({ error: 'Sohbet bulunamadı' });
     }
 
+    const allUserChats = await Chat.find({ userId: chat.userId }).sort({ updatedAt: -1 });
+
     const userText = message.trim();
 
     chat.messages.push({
@@ -196,9 +198,11 @@ try {
   console.error('User profile fetch error:', e.message);
 }
 
+const memoryMessages = buildCrossChatMemory(chat, allUserChats);
+
 const aiResult = await generateChatReply({
   userMessage: userText,
-  previousMessages: chat.messages,
+  previousMessages: memoryMessages,
   selectedProduct,
   userProfile,
 });
@@ -347,6 +351,9 @@ const searchByImageContext = async (req, res) => {
     if (!chat) {
       return res.status(404).json({ error: 'Sohbet bulunamadı' });
     }
+
+    const allUserChats = await Chat.find({ userId: chat.userId }).sort({ updatedAt: -1 });
+const memoryMessages = buildCrossChatMemory(chat, allUserChats);
 
     const userText = message.trim();
 

@@ -692,7 +692,7 @@ function buildReferenceBasedReply(userMessage = '', referencedProduct = null) {
 function extractRecentProducts(previousMessages = []) {
   const assistantMessages = previousMessages
     .filter((m) => m.role === 'assistant' && Array.isArray(m.products) && m.products.length > 0)
-    .slice(-3);
+    .slice(-8);
 
   let recentProducts = [];
 
@@ -700,18 +700,19 @@ function extractRecentProducts(previousMessages = []) {
     recentProducts = [...recentProducts, ...msg.products];
   }
 
-  return normalizeProducts(recentProducts).slice(0, 12);
+  return normalizeProducts(recentProducts).slice(0, 24);
 }
 
 function formatHistory(previousMessages = []) {
   return previousMessages
-    .slice(-12)
+    .slice(-24)
     .map((m) => `${m.role === 'user' ? 'Kullanıcı' : 'Asistan'}: ${m.text}`)
     .join('\n');
 }
 
 async function generatePlanner({ userMessage, previousMessages = [], userProfile = null }) {
   const profileText = formatUserProfile(userProfile);
+  const preferenceSummary = buildUserPreferenceSummary(previousMessages);
   const historyText = formatHistory(previousMessages);
   const recentProducts = extractRecentProducts(previousMessages);
 
@@ -769,6 +770,9 @@ Intent türleri:
 
 Kurallar:
 - Eğer kullanıcı mesajı çok genel bir ürün isteğiyse ve doğru sonuç vermek için kullanım amacı, tarz, tür, bütçe veya alt kategori bilgisi gerekiyorsa needs_clarification=true yap.
+- Kullanıcının davranışsal özeti, genel önerilerde fiziksel profil bilgisinden daha önceliklidir.
+- Boy, kilo, beden ve numara bilgisini sadece gerçekten gerekli olduğunda kullan.
+- Kullanıcı yeni sohbette bile genel öneri istiyorsa geçmiş ilgi alanlarını dikkate al.
 - Eğer kullanıcı profili varsa ve bu profil ilgili kategori için güçlü sinyal sağlıyorsa clarification yerine direkt ürün aramaya daha yatkın olabilirsin.
 - Ancak kullanıcı profili alakasızsa sadece profil var diye direkt ürün arama.
 - Ev, mutfak, dekorasyon, aksesuar, saat, çatal, tabak, bardak gibi kategorilerde kullanıcı profili çoğu zaman yeterli değildir; bu tür durumlarda belirsizlik varsa soru sormayı tercih et.
@@ -824,6 +828,9 @@ ${historyText || 'Yok'}
 Önceki ürünler:
 ${JSON.stringify(recentProducts, null, 2)}
 
+Kullanıcı davranış özeti:
+${preferenceSummary}
+
 Kullanıcı profili:
 ${profileText}
 
@@ -860,6 +867,7 @@ async function generateAnswer({
   userProfile = null,
 }) {
   const profileText = formatUserProfile(userProfile);
+  const preferenceSummary = buildUserPreferenceSummary(previousMessages);
   const historyText = formatHistory(previousMessages);
   const recentProducts = extractRecentProducts(previousMessages);
   const normalizedSearchedProducts = normalizeProducts(searchedProducts);
@@ -878,6 +886,10 @@ Kurallar:
 - Eğer ürün döndürüyorsan her ürün için mutlaka "short_reason" alanı üretmek zorundasın.
 - short_reason her ürün için farklı olsun.
 - short_reason doğal, spesifik ve kullanıcı isteğine uygun olsun.
+- Kullanıcının davranışsal özeti, genel ürün önerilerinde beden/boy/kilo gibi profil alanlarından daha önceliklidir.
+- Kullanıcı kendi ilgi alanlarını sormuyorsa profil bilgilerini doğrudan söyleme.
+- Genel önerilerde önce davranışsal tercihleri kullan, profil bilgilerini sadece gerekiyorsa ince ayar olarak kullan.
+- Yeni sohbet açılmış olsa bile geçmiş sohbet davranışlarını alışveriş hafızası olarak dikkate al.
 - Eğer kullanıcı profili varsa ürün önerirken bunu dikkate al.
 - Cinsiyet bilgisi varsa özellikle giyim, ayakkabı, çanta, aksesuar ve parfüm önerilerinde bunu dikkate al.
 - Eğer cinsiyet bilgisi varsa alakasız kadın/erkek karışık ürünler gösterme.
@@ -939,6 +951,9 @@ ${planner.needs_product_search}
 
 Sohbet geçmişi:
 ${historyText || 'Yok'}
+
+Kullanıcı davranış özeti:
+${preferenceSummary}
 
 Kullanıcı profili:
 ${profileText}
@@ -1112,6 +1127,40 @@ function normalizeActions(actions) {
   }
 
   return [];
+}
+
+function buildCrossChatMemory(currentChat, allChats = []) {
+  const currentChatId = String(currentChat?._id || '');
+
+  const currentMessages = Array.isArray(currentChat?.messages)
+    ? currentChat.messages
+    : [];
+
+  const otherMessages = allChats
+    .filter((c) => String(c._id) !== currentChatId)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+    .flatMap((c) =>
+      Array.isArray(c.messages)
+        ? c.messages.map((m) => ({
+            ...m.toObject?.() || m,
+            _sourceChatId: String(c._id),
+          }))
+        : []
+    );
+
+  const normalizedCurrentMessages = currentMessages.map((m) => ({
+    ...m.toObject?.() || m,
+    _sourceChatId: currentChatId,
+  }));
+
+  // Önce diğer sohbetlerden son hafıza, sonra aktif sohbetin tamamı
+  const merged = [
+    ...otherMessages.slice(-40),
+    ...normalizedCurrentMessages,
+  ];
+
+  // Çok uzamasın
+  return merged.slice(-60);
 }
 
 
@@ -1309,6 +1358,112 @@ async function generateChatReply({
     };
   }
   console.log("NEW GENERATECHATREPLY ACTIVE:", userMessage);
+
+  if (isUserPreferenceQuestion(userMessage)) {
+    return {
+      assistantText: generatePreferenceInsightReply(previousMessages),
+      products: [],
+      actions: [],
+      comparison: null,
+    };
+  }
+
+  if (isGenericRecommendationRequest(userMessage)) {
+    const preferenceSeed = buildPreferenceSeed(previousMessages);
+
+    if (preferenceSeed && preferenceSeed.trim().length > 0) {
+      const seededMessage = `
+Kullanıcı genel bir öneri istiyor.
+Aşağıdaki uzun dönem alışveriş hafızasını kullanarak daha kişisel öneri ver:
+
+${preferenceSeed}
+
+Kullanıcı mesajı:
+${userMessage}
+      `.trim();
+
+      const planner = await generatePlanner({
+        userMessage: seededMessage,
+        previousMessages,
+        userProfile,
+      });
+
+      let searchedProducts = [];
+
+      if (planner.needs_product_search) {
+        const rawResults = await searchWithFallback(userMessage, planner.search_query);
+
+        let filteredResults = [...rawResults];
+        filteredResults = filterProductsByGender(filteredResults, userProfile);
+        filteredResults = filterProductsByPriceIntent(filteredResults, userMessage);
+
+        if (filteredResults.length > 0) {
+          const featureFiltered = filterProductsByFeatures(filteredResults, userMessage);
+          if (featureFiltered.length > 0) {
+            filteredResults = featureFiltered;
+          }
+        }
+
+        filteredResults = removeWeakProducts(
+          filteredResults,
+          userMessage,
+          planner.search_query
+        );
+
+        filteredResults = scoreAndRankProducts(
+          filteredResults,
+          userMessage,
+          planner.search_query
+        );
+
+        searchedProducts =
+          filteredResults.length > 0
+            ? filteredResults.slice(0, 10)
+            : scoreAndRankProducts(rawResults, userMessage, planner.search_query).slice(0, 10);
+      }
+
+      const answer = await generateAnswer({
+        userMessage: seededMessage,
+        previousMessages,
+        planner,
+        searchedProducts,
+        userProfile,
+      });
+
+      const finalProducts =
+        Array.isArray(answer.products) && answer.products.length > 0
+          ? normalizeProducts(answer.products)
+          : normalizeProducts(searchedProducts);
+
+      const finalActions =
+        finalProducts.length === 0
+          ? []
+          : (Array.isArray(answer.actions) && answer.actions.length > 0
+              ? answer.actions
+              : buildFallbackActions(finalProducts, planner, userMessage));
+
+      return {
+        assistantText: answer.assistant_text || 'Seni tanıdığım kadarıyla birkaç öneri hazırladım.',
+        products: finalProducts,
+        actions: finalActions,
+        comparison: null,
+      };
+    }
+  }
+
+  if (isUserPreferenceQuestion(userMessage)) {
+    const preferenceInsight = await generatePreferenceInsightReply({
+      previousMessages,
+      userProfile,
+    });
+
+    return {
+      assistantText: `${preferenceInsight.title}\n\n- ${preferenceInsight.bullets.join('\n- ')}`,
+      products: [],
+      actions: [],
+      comparison: null,
+    };
+  }
 
   const recentProducts = extractRecentProducts(previousMessages);
   const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
@@ -1984,6 +2139,628 @@ function formatUserProfile(userProfile = null) {
   }
 
   return parts.length > 0 ? parts.join('\n') : 'Kullanıcı profili boş.';
+}
+
+function detectInterestCategory(text = '') {
+  const t = normalizeText(text);
+
+  if (
+    t.includes('ayakkabi') ||
+    t.includes('sneaker') ||
+    t.includes('bot') ||
+    t.includes('terlik') ||
+    t.includes('sandalet')
+  ) {
+    return 'Ayakkabı & sneaker';
+  }
+
+  if (
+    t.includes('ceket') ||
+    t.includes('mont') ||
+    t.includes('gomlek') ||
+    t.includes('pantolon') ||
+    t.includes('elbise') ||
+    t.includes('tisort') ||
+    t.includes('tshirt') ||
+    t.includes('kombin') ||
+    t.includes('giyim')
+  ) {
+    return 'Giyim & stil';
+  }
+
+  if (
+    t.includes('kulaklik') ||
+    t.includes('mouse') ||
+    t.includes('klavye') ||
+    t.includes('telefon') ||
+    t.includes('tablet') ||
+    t.includes('gaming') ||
+    t.includes('laptop')
+  ) {
+    return 'Teknoloji & gaming';
+  }
+
+  if (
+    t.includes('parfum') ||
+    t.includes('kozmetik') ||
+    t.includes('serum') ||
+    t.includes('krem') ||
+    t.includes('makyaj') ||
+    t.includes('ruj') ||
+    t.includes('fondoten')
+  ) {
+    return 'Kozmetik & bakım';
+  }
+
+  if (
+    t.includes('canta') ||
+    t.includes('aksesuar') ||
+    t.includes('saat') ||
+    t.includes('gozluk')
+  ) {
+    return 'Aksesuar';
+  }
+
+  if (
+    t.includes('catal') ||
+    t.includes('bicak') ||
+    t.includes('kasik') ||
+    t.includes('bardak') ||
+    t.includes('tabak') ||
+    t.includes('mutfak')
+  ) {
+    return 'Ev & mutfak';
+  }
+
+  return null;
+}
+
+function extractBrandSignals(text = '') {
+  const t = normalizeText(text);
+
+  const knownBrands = [
+    'nike', 'adidas', 'puma', 'new balance', 'skechers',
+    'apple', 'samsung', 'xiaomi', 'jbl', 'logitech',
+    'steelseries', 'razer', 'anker', 'philips',
+    'nivea', 'loreal', 'maybelline', 'nars'
+  ];
+
+  return knownBrands.filter((brand) => t.includes(normalizeText(brand)));
+}
+
+function buildUserPreferenceProfile(previousMessages = []) {
+  const categoryScores = {};
+  const brandScores = {};
+  let priceSensitiveScore = 0;
+  let premiumScore = 0;
+
+  for (const msg of previousMessages) {
+    const text = String(msg?.text || '');
+    const normalized = normalizeText(text);
+
+    const category = detectInterestCategory(text);
+    if (category) {
+      categoryScores[category] = (categoryScores[category] || 0) + 2;
+    }
+
+    const brands = extractBrandSignals(text);
+    for (const brand of brands) {
+      brandScores[brand] = (brandScores[brand] || 0) + 2;
+    }
+
+    if (
+      normalized.includes('uygun fiyat') ||
+      normalized.includes('fiyat performans') ||
+      normalized.includes('ucuz') ||
+      normalized.includes('daha ucuz') ||
+      normalized.includes('butce') ||
+      normalized.includes('bütce') ||
+      normalized.includes('butce') ||
+      normalized.includes('tl alti') ||
+      normalized.includes('tl alti')
+    ) {
+      priceSensitiveScore += 2;
+    }
+
+    if (
+      normalized.includes('premium') ||
+      normalized.includes('en iyi') ||
+      normalized.includes('kaliteli') ||
+      normalized.includes('ust seviye') ||
+      normalized.includes('ust duzey')
+    ) {
+      premiumScore += 1;
+    }
+
+    if (msg && Array.isArray(msg.products) && msg.products.length > 0) {
+      for (const product of msg.products) {
+        const pText = `${product.name || ''} ${product.short_reason || ''}`;
+        const pCategory = detectInterestCategory(pText);
+
+        if (pCategory) {
+          categoryScores[pCategory] = (categoryScores[pCategory] || 0) + 1;
+        }
+
+        const pBrands = extractBrandSignals(pText);
+        for (const brand of pBrands) {
+          brandScores[brand] = (brandScores[brand] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const topCategories = Object.entries(categoryScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  const topBrands = Object.entries(brandScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  let shoppingStyle = 'Henüz net değil';
+
+  if (priceSensitiveScore >= 3 && premiumScore < 2) {
+    shoppingStyle = 'Fiyat/performans odaklı';
+  } else if (premiumScore >= 3 && priceSensitiveScore < 2) {
+    shoppingStyle = 'Daha kaliteli ürünlere açık';
+  } else if (priceSensitiveScore >= 2 && premiumScore >= 2) {
+    shoppingStyle = 'Hem fiyatı hem kaliteyi dengelemeye çalışan';
+  }
+
+  return {
+    topCategories,
+    topBrands,
+    shoppingStyle,
+    hasStrongSignal: topCategories.length > 0 || topBrands.length > 0,
+  };
+}
+
+function buildUserPreferenceSummary(previousMessages = []) {
+  const profile = buildUserPreferenceProfile(previousMessages);
+
+  if (!profile.hasStrongSignal) {
+    return 'Kullanıcının alışveriş tercihleri henüz net değil.';
+  }
+
+  const parts = [];
+
+  if (profile.topCategories.length > 0) {
+    parts.push(`Öne çıkan ilgi alanları: ${profile.topCategories.join(', ')}`);
+  }
+
+  if (profile.topBrands.length > 0) {
+    parts.push(`Tekrarlayan marka ilgileri: ${profile.topBrands.join(', ')}`);
+  }
+
+  parts.push(`Alışveriş yaklaşımı: ${profile.shoppingStyle}`);
+
+  return parts.join('\n');
+}
+
+function isUserPreferenceQuestion(userMessage = '') {
+  const text = normalizeText(userMessage);
+
+  return (
+    text.includes('ilgi alanlarim ne') ||
+    text.includes('ilgi alanlarim neler') ||
+    text.includes('neleri seviyorum') ||
+    text.includes('en cok neye bakiyorum') ||
+    text.includes('hangi kategorilere daha cok bakiyorum') ||
+    text.includes('hangi kategorileri seviyorum') ||
+    text.includes('beni taniyor musun') ||
+    text.includes('benim hakkimda ne biliyorsun') ||
+    text.includes('alisveris tercihlerim ne') ||
+    text.includes('alisveris tarzim ne') ||
+    text.includes('tarzimi biliyor musun')
+  );
+}
+
+function isGenericRecommendationRequest(userMessage = '') {
+  const text = normalizeText(userMessage);
+
+  return (
+    text === 'ne onerirsin' ||
+    text === 'ne önerirsin' ||
+    text === 'bana bir sey oner' ||
+    text === 'bana bir şey öner' ||
+    text === 'bir sey oner' ||
+    text === 'bir şey öner' ||
+    text === 'bana uygun bir sey oner' ||
+    text === 'bana uygun bir şey öner' ||
+    text === 'sence ne almaliyim' ||
+    text === 'sence ne almalıyım' ||
+    text === 'bana bir urun oner' ||
+    text === 'bana bir ürün öner'
+  );
+}
+
+function generatePreferenceInsightReply(previousMessages = []) {
+  const profile = buildUserPreferenceProfile(previousMessages);
+
+  if (!profile.hasStrongSignal) {
+    return `Seni tanımaya başladım ama henüz güçlü bir alışveriş deseni oluşmadı.
+- Birkaç farklı ürün daha aradığında ilgilerini daha net çıkarabilirim.
+- Şu an için bana en çok baktığın kategori veya bütçe tarzını biraz daha göstermen lazım.`;
+  }
+
+  const bullets = [];
+
+  if (profile.topCategories.length > 0) {
+    bullets.push(`En çok ilgilendiğin alanlar: ${profile.topCategories.join(', ')}`);
+  }
+
+  if (profile.topBrands.length > 0) {
+    bullets.push(`Tekrarlayan marka ilgilerin: ${profile.topBrands.join(', ')}`);
+  }
+
+  if (profile.shoppingStyle && profile.shoppingStyle !== 'Henüz net değil') {
+    bullets.push(`Alışveriş yaklaşımın: ${profile.shoppingStyle}`);
+  }
+
+  bullets.push('Bunu sohbet geçmişindeki aramalarına ve baktığın ürünlere göre çıkarıyorum.');
+
+  return `Seni şöyle tanıyorum:\n- ${bullets.join('\n- ')}`;
+}
+
+function buildPreferenceSeed(previousMessages = []) {
+  const profile = buildUserPreferenceProfile(previousMessages);
+
+  if (!profile.hasStrongSignal) {
+    return '';
+  }
+
+  const parts = [];
+
+  if (profile.topCategories.length > 0) {
+    parts.push(`Öne çıkan kategoriler: ${profile.topCategories.join(', ')}`);
+  }
+
+  if (profile.topBrands.length > 0) {
+    parts.push(`Marka eğilimleri: ${profile.topBrands.join(', ')}`);
+  }
+
+  if (profile.shoppingStyle && profile.shoppingStyle !== 'Henüz net değil') {
+    parts.push(`Alışveriş yaklaşımı: ${profile.shoppingStyle}`);
+  }
+
+  return parts.join('\n');
+}
+
+function detectInterestCategory(text = '') {
+  const t = normalizeText(text);
+
+  if (
+    t.includes('ayakkabi') ||
+    t.includes('sneaker') ||
+    t.includes('bot') ||
+    t.includes('terlik') ||
+    t.includes('sandalet')
+  ) {
+    return 'Ayakkabı & sneaker';
+  }
+
+  if (
+    t.includes('ceket') ||
+    t.includes('mont') ||
+    t.includes('gomlek') ||
+    t.includes('pantolon') ||
+    t.includes('elbise') ||
+    t.includes('tisort') ||
+    t.includes('tshirt') ||
+    t.includes('kombin') ||
+    t.includes('giyim')
+  ) {
+    return 'Giyim & stil';
+  }
+
+  if (
+    t.includes('kulaklik') ||
+    t.includes('mouse') ||
+    t.includes('klavye') ||
+    t.includes('telefon') ||
+    t.includes('tablet') ||
+    t.includes('gaming') ||
+    t.includes('laptop')
+  ) {
+    return 'Teknoloji & gaming';
+  }
+
+  if (
+    t.includes('parfum') ||
+    t.includes('kozmetik') ||
+    t.includes('serum') ||
+    t.includes('krem') ||
+    t.includes('makyaj') ||
+    t.includes('ruj') ||
+    t.includes('fondoten')
+  ) {
+    return 'Kozmetik & bakım';
+  }
+
+  if (
+    t.includes('canta') ||
+    t.includes('aksesuar') ||
+    t.includes('saat') ||
+    t.includes('gozluk')
+  ) {
+    return 'Aksesuar';
+  }
+
+  if (
+    t.includes('catal') ||
+    t.includes('bicak') ||
+    t.includes('kasik') ||
+    t.includes('bardak') ||
+    t.includes('tabak') ||
+    t.includes('mutfak')
+  ) {
+    return 'Ev & mutfak';
+  }
+
+  return null;
+}
+
+function extractBrandSignals(text = '') {
+  const t = normalizeText(text);
+
+  const knownBrands = [
+    'nike', 'adidas', 'puma', 'new balance', 'skechers',
+    'apple', 'samsung', 'xiaomi', 'jbl', 'logitech',
+    'steelseries', 'razer', 'anker', 'philips',
+    'nivea', 'loreal', 'maybelline', 'nars'
+  ];
+
+  return knownBrands.filter((brand) => t.includes(normalizeText(brand)));
+}
+
+function buildUserPreferenceProfile(previousMessages = []) {
+  const categoryScores = {};
+  const brandScores = {};
+  let priceSensitiveScore = 0;
+  let premiumScore = 0;
+
+  for (const msg of previousMessages) {
+    const text = String(msg?.text || '');
+    const normalized = normalizeText(text);
+
+    const category = detectInterestCategory(text);
+    if (category) {
+      categoryScores[category] = (categoryScores[category] || 0) + 2;
+    }
+
+    const brands = extractBrandSignals(text);
+    for (const brand of brands) {
+      brandScores[brand] = (brandScores[brand] || 0) + 2;
+    }
+
+    if (
+      normalized.includes('uygun fiyat') ||
+      normalized.includes('fiyat performans') ||
+      normalized.includes('ucuz') ||
+      normalized.includes('daha ucuz') ||
+      normalized.includes('butce') ||
+      normalized.includes('bütçe')
+    ) {
+      priceSensitiveScore += 2;
+    }
+
+    if (
+      normalized.includes('premium') ||
+      normalized.includes('en iyi') ||
+      normalized.includes('kaliteli') ||
+      normalized.includes('ust seviye') ||
+      normalized.includes('üst seviye')
+    ) {
+      premiumScore += 1;
+    }
+
+    if (msg && Array.isArray(msg.products) && msg.products.length > 0) {
+      for (const product of msg.products) {
+        const pText = `${product.name || ''} ${product.short_reason || ''}`;
+        const pCategory = detectInterestCategory(pText);
+
+        if (pCategory) {
+          categoryScores[pCategory] = (categoryScores[pCategory] || 0) + 1;
+        }
+
+        const pBrands = extractBrandSignals(pText);
+        for (const brand of pBrands) {
+          brandScores[brand] = (brandScores[brand] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const topCategories = Object.entries(categoryScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  const topBrands = Object.entries(brandScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  let shoppingStyle = 'Henüz net değil';
+
+  if (priceSensitiveScore >= 3 && premiumScore < 2) {
+    shoppingStyle = 'Fiyat/performans odaklı';
+  } else if (premiumScore >= 3 && priceSensitiveScore < 2) {
+    shoppingStyle = 'Daha kaliteli / premium ürünlere açık';
+  } else if (priceSensitiveScore >= 2 && premiumScore >= 2) {
+    shoppingStyle = 'Denge arayan, hem fiyatı hem kaliteyi önemseyen';
+  }
+
+  return {
+    topCategories,
+    topBrands,
+    shoppingStyle,
+    hasStrongSignal: topCategories.length > 0 || topBrands.length > 0,
+  };
+}
+
+function buildUserPreferenceSummary(previousMessages = []) {
+  const profile = buildUserPreferenceProfile(previousMessages);
+
+  if (!profile.hasStrongSignal) {
+    return 'Kullanıcının alışveriş tercihleri henüz net değil.';
+  }
+
+  const parts = [];
+
+  if (profile.topCategories.length > 0) {
+    parts.push(`Öne çıkan ilgi alanları: ${profile.topCategories.join(', ')}`);
+  }
+
+  if (profile.topBrands.length > 0) {
+    parts.push(`Sık tekrar eden marka ilgileri: ${profile.topBrands.join(', ')}`);
+  }
+
+  if (profile.shoppingStyle) {
+    parts.push(`Alışveriş yaklaşımı: ${profile.shoppingStyle}`);
+  }
+
+  return parts.join('\n');
+}
+
+function generatePreferenceInsightReply(previousMessages = []) {
+  const profile = buildUserPreferenceProfile(previousMessages);
+
+  if (!profile.hasStrongSignal) {
+    return `Seni tanımaya başladım ama henüz güçlü bir alışveriş deseni oluşmadı.
+- Birkaç farklı ürün daha aradığında ilgilerini daha net çıkarabilirim.
+- Şu an için bana en çok baktığın kategori veya bütçe tarzını biraz daha göstermen lazım.`;
+  }
+
+  const bullets = [];
+
+  if (profile.topCategories.length > 0) {
+    bullets.push(`En çok ilgilendiğin alanlar: ${profile.topCategories.join(', ')}`);
+  }
+
+  if (profile.topBrands.length > 0) {
+    bullets.push(`Tekrarlayan marka ilgilerin: ${profile.topBrands.join(', ')}`);
+  }
+
+  if (profile.shoppingStyle && profile.shoppingStyle !== 'Henüz net değil') {
+    bullets.push(`Alışveriş yaklaşımın: ${profile.shoppingStyle}`);
+  }
+
+  bullets.push('Bunu geçmiş aramalarına ve baktığın ürünlere göre çıkarıyorum.');
+
+  return `Seni şöyle tanıyorum:\n- ${bullets.join('\n- ')}`;
+}{
+  const preferenceSummary = buildUserPreferenceSummary(previousMessages);
+  const profileText = formatUserProfile(userProfile);
+
+  const prompt = `
+Sen Shopi'sin.
+Kullanıcı kendi alışveriş ilgilerini ve tercihlerini soruyor.
+
+Kurallar:
+- Sadece geçmiş sohbet davranışlarına göre konuş.
+- Boy, kilo, beden, numara gibi profil alanlarını ana cevap yapma.
+- Eğer davranışsal sinyal zayıfsa bunu dürüstçe söyle.
+- Kısa, doğal ve samimi cevap ver.
+- En fazla 5 kısa madde yaz.
+- Tercihleri özetle, çok uzatma.
+
+Davranışsal özet:
+${preferenceSummary}
+
+Profil bilgileri:
+${profileText}
+
+Geçmiş mesajlar:
+${formatHistory(previousMessages)}
+
+JSON döndür:
+{
+  "title": "Kısa başlık",
+  "bullets": [
+    "madde 1",
+    "madde 2",
+    "madde 3"
+  ]
+}
+`;
+
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.5,
+  });
+
+  const text = response.choices[0].message.content;
+  const parsed = safeParseJson(text);
+
+  const bullets = Array.isArray(parsed?.bullets)
+    ? parsed.bullets.map((e) => String(e).trim()).filter(Boolean).slice(0, 5)
+    : [];
+
+  return {
+    title:
+      typeof parsed?.title === 'string' && parsed.title.trim().length > 0
+        ? parsed.title.trim()
+        : 'Alışveriş profilin',
+    bullets:
+      bullets.length > 0
+        ? bullets
+        : ['Henüz yeterince güçlü bir alışveriş sinyali toplayamadım.'],
+  };
+}
+
+function buildUserPreferenceSummary(previousMessages = []) {
+  const text = previousMessages
+    .map((m) => m.text || '')
+    .join(' ')
+    .toLowerCase();
+
+  const preferences = [];
+
+  // 🔥 Kategori ilgisi
+  if (text.includes('ayakkabi') || text.includes('sneaker')) {
+    preferences.push('Ayakkabı ve sneaker ilgisi yüksek');
+  }
+
+  if (text.includes('ceket') || text.includes('kombin') || text.includes('giyim')) {
+    preferences.push('Giyim ve stil ürünlerine ilgili');
+  }
+
+  if (text.includes('kulaklik') || text.includes('gaming') || text.includes('mouse')) {
+    preferences.push('Teknoloji ve gaming ürünlerine ilgili');
+  }
+
+  if (text.includes('parfum') || text.includes('kozmetik')) {
+    preferences.push('Kozmetik ve bakım ürünlerine ilgili');
+  }
+
+  // 🔥 Fiyat hassasiyeti
+  if (
+    text.includes('uygun fiyat') ||
+    text.includes('ucuz') ||
+    text.includes('fiyat performans')
+  ) {
+    preferences.push('Fiyat/performans odaklı');
+  }
+
+  // 🔥 Marka hassasiyeti
+  if (
+    text.includes('nike') ||
+    text.includes('adidas') ||
+    text.includes('apple') ||
+    text.includes('samsung')
+  ) {
+    preferences.push('Marka odaklı seçim yapıyor');
+  }
+
+  if (preferences.length === 0) {
+    return 'Kullanıcı tercihleri henüz net değil.';
+  }
+
+  return preferences.join('\n');
 }
 
 function hasUsefulProfileForCategory(userMessage = '', userProfile = null) {
