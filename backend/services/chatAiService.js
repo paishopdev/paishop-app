@@ -2611,66 +2611,6 @@ function buildUserPreferenceSummary(previousMessages = []) {
 
   return parts.join('\n');
 }
-{
-  const preferenceSummary = buildUserPreferenceSummary(previousMessages);
-  const profileText = formatUserProfile(userProfile);
-
-  const prompt = `
-Sen Shopi'sin.
-Kullanıcı kendi alışveriş ilgilerini ve tercihlerini soruyor.
-
-Kurallar:
-- Sadece geçmiş sohbet davranışlarına göre konuş.
-- Boy, kilo, beden, numara gibi profil alanlarını ana cevap yapma.
-- Eğer davranışsal sinyal zayıfsa bunu dürüstçe söyle.
-- Kısa, doğal ve samimi cevap ver.
-- En fazla 5 kısa madde yaz.
-- Tercihleri özetle, çok uzatma.
-
-Davranışsal özet:
-${preferenceSummary}
-
-Profil bilgileri:
-${profileText}
-
-Geçmiş mesajlar:
-${formatHistory(previousMessages)}
-
-JSON döndür:
-{
-  "title": "Kısa başlık",
-  "bullets": [
-    "madde 1",
-    "madde 2",
-    "madde 3"
-  ]
-}
-`;
-
-  const response = await client.chat.completions.create({
-    model: 'gpt-4.1-mini',
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.5,
-  });
-
-  const text = response.choices[0].message.content;
-  const parsed = safeParseJson(text);
-
-  const bullets = Array.isArray(parsed?.bullets)
-    ? parsed.bullets.map((e) => String(e).trim()).filter(Boolean).slice(0, 5)
-    : [];
-
-  return {
-    title:
-      typeof parsed?.title === 'string' && parsed.title.trim().length > 0
-        ? parsed.title.trim()
-        : 'Alışveriş profilin',
-    bullets:
-      bullets.length > 0
-        ? bullets
-        : ['Henüz yeterince güçlü bir alışveriş sinyali toplayamadım.'],
-  };
-}
 
 function buildUserPreferenceSummary(previousMessages = []) {
   const text = previousMessages
