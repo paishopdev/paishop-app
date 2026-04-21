@@ -1392,6 +1392,8 @@ async function generateChatReply({
         },
       };
     }
+
+    
   
     const detailResult = await generateSelectedProductDetail({
       selectedProduct,
@@ -1522,6 +1524,7 @@ ${userMessage}
   const referencedProduct = resolveProductReference(userMessage, recentProducts);
   const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
+  const isSellerCompare = isSellerComparisonRequest(userMessage);
 
   const actionCommand = detectActionCommand(userMessage);
   const latestBatchProducts = extractLastProductBatch(previousMessages);
@@ -1935,6 +1938,19 @@ const finalActions =
     finalProducts,
     userMessage
   );
+  if (isSellerCompare && finalProducts.length >= 2) {
+    const sellerComparison = buildSellerComparisonData(finalProducts);
+  
+    if (sellerComparison) {
+      return {
+        assistantText: 'Aynı ürünü farklı satıcılarda senin için çıkardım.',
+        products: [],
+        actions: [],
+        comparison: null,
+        sellerComparison,
+      };
+    }
+  }
 
   return {
     assistantText: polishedAssistantText,
@@ -2008,6 +2024,121 @@ function isReviewRequest(userMessage = '') {
     text.includes('begenilmis')
   );
 }
+
+function normalizeProductNameForSellerCompare(name = '') {
+  return normalizeText(name)
+    .replace(/\b(\d+)\s?gb\b/g, '$1gb')
+    .replace(/\b(\d+)\s?tb\b/g, '$1tb')
+    .replace(/\b(rgb|gaming|oyuncu|kablosuz|bluetooth|wireless)\b/g, ' $1 ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractSellerCompareKey(product = {}) {
+  const raw = `${product.name || ''} ${product.short_reason || ''}`.trim();
+  const normalized = normalizeProductNameForSellerCompare(raw);
+
+  const words = normalized.split(' ').filter(Boolean);
+
+  if (words.length <= 6) return normalized;
+
+  return words.slice(0, 6).join(' ');
+}
+
+function groupProductsBySeller(products = []) {
+  const groups = {};
+
+  for (const product of normalizeProducts(products)) {
+    const key = extractSellerCompareKey(product);
+    if (!key) continue;
+
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+
+    groups[key].push(product);
+  }
+
+  return Object.values(groups)
+    .map((items) => {
+      const sortedByPrice = [...items].sort(
+        (a, b) => parsePriceValue(a.price) - parsePriceValue(b.price)
+      );
+
+      const cheapest = sortedByPrice[0] || null;
+      const highest = sortedByPrice[sortedByPrice.length - 1] || null;
+
+      const minPrice = cheapest ? parsePriceValue(cheapest.price) : null;
+      const maxPrice = highest ? parsePriceValue(highest.price) : null;
+
+      return {
+        baseName: cheapest?.name || items[0]?.name || '',
+        image: cheapest?.image || items[0]?.image || '',
+        sellers: sortedByPrice.map((item) => ({
+          name: item.name || '',
+          price: item.price || '',
+          platform: item.platform || '',
+          image: item.image || '',
+          link: item.link || '',
+          rating: item.rating || null,
+          reviews: item.reviews || null,
+        })),
+        cheapestSeller: cheapest
+          ? {
+              price: cheapest.price || '',
+              platform: cheapest.platform || '',
+              link: cheapest.link || '',
+            }
+          : null,
+        priceSpread:
+          minPrice != null &&
+          maxPrice != null &&
+          minPrice !== Number.MAX_SAFE_INTEGER &&
+          maxPrice !== Number.MAX_SAFE_INTEGER
+            ? maxPrice - minPrice
+            : null,
+      };
+    })
+    .filter((group) => group.sellers.length >= 2)
+    .sort((a, b) => b.sellers.length - a.sellers.length);
+}
+
+function isSellerComparisonRequest(userMessage = '') {
+  const text = normalizeText(userMessage);
+
+  return (
+    text.includes('satıcı') ||
+    text.includes('magaza') ||
+    text.includes('mağaza') ||
+    text.includes('farkli satici') ||
+    text.includes('farklı satıcı') ||
+    text.includes('ayni urun') ||
+    text.includes('aynı ürün') ||
+    text.includes('en ucuz satici') ||
+    text.includes('en ucuz satıcı') ||
+    text.includes('saticilar arasinda') ||
+    text.includes('satıcılar arasında')
+  );
+}
+
+function buildSellerComparisonData(products = []) {
+  const grouped = groupProductsBySeller(products).slice(0, 3);
+
+  if (!grouped.length) return null;
+
+  return {
+    title: 'Satıcı karşılaştırması',
+    groups: grouped.map((group) => ({
+      baseName: group.baseName,
+      image: group.image,
+      cheapestSeller: group.cheapestSeller,
+      priceSpread: group.priceSpread,
+      sellers: group.sellers.slice(0, 5),
+    })),
+  };
+}
+
 async function generateSmallTalkReply(userMessage, previousMessages = []) {
   console.log('SMALL TALK DYNAMIC HIT:', userMessage);
 

@@ -29,6 +29,7 @@ class ChatMessage {
   final Map<String, dynamic>? comparison;
   final Map<String, dynamic>? detailCard;
   final Map<String, dynamic>? reviewCard;
+  final Map<String, dynamic>? sellerComparison;
   final String? contextTitle;
   final String? contextImage;
   final List<XFile>? galleryImages;
@@ -44,6 +45,7 @@ class ChatMessage {
     this.contextTitle,
     this.contextImage,
     this.galleryImages,
+    this.sellerComparison,
   });
 }
 
@@ -852,6 +854,10 @@ bool isChatUnread(ChatItem chat) {
     ? Map<String, dynamic>.from(m["reviewCard"])
     : null;
 
+    final sellerComparison = m["sellerComparison"] != null
+    ? Map<String, dynamic>.from(m["sellerComparison"])
+    : null;
+
   return ChatMessage(
     text: m["text"] ?? '',
     isUser: (m["role"] ?? '') == 'user',
@@ -860,6 +866,7 @@ bool isChatUnread(ChatItem chat) {
     comparison: comparison,
     detailCard: detailCard,
     reviewCard: reviewCard,
+    sellerComparison: sellerComparison,
     contextTitle: m["contextProduct"]?["name"],
     contextImage: m["contextProduct"]?["image"],
   );
@@ -970,6 +977,10 @@ Future<void> search() async {
         ? Map<String, dynamic>.from(result["reviewCard"])
         : null;
 
+        final sellerComparison = result["sellerComparison"] != null
+    ? Map<String, dynamic>.from(result["sellerComparison"])
+    : null;
+
     // 🔥 SADECE hala aynı chat açıksa ekle
     if (chatIdForRequest == currentChatId) {
       setState(() {
@@ -982,6 +993,7 @@ Future<void> search() async {
             comparison: comparison,
             detailCard: detailCard,
             reviewCard: reviewCard,
+            sellerComparison: sellerComparison,
           ),
         );
 
@@ -1856,6 +1868,169 @@ Widget buildReviewCard(Map<String, dynamic> reviewCard) {
   );
 }
 
+Widget buildSellerComparisonCard(Map<String, dynamic> data) {
+  final groups = data["groups"] is List
+      ? List<Map<String, dynamic>>.from(
+          (data["groups"] as List).map((e) => Map<String, dynamic>.from(e)),
+        )
+      : <Map<String, dynamic>>[];
+
+  if (groups.isEmpty) return const SizedBox.shrink();
+
+  return Container(
+    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: Colors.grey.shade200),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.storefront_outlined, color: primaryColor, size: 18),
+            const SizedBox(width: 8),
+            const Text(
+              "Satıcı karşılaştırması",
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        ...groups.map((group) {
+          final baseName = (group["baseName"] ?? "").toString().trim();
+          final image = (group["image"] ?? "").toString().trim();
+          final sellers = group["sellers"] is List
+              ? List<Map<String, dynamic>>.from(
+                  (group["sellers"] as List).map((e) => Map<String, dynamic>.from(e)),
+                )
+              : <Map<String, dynamic>>[];
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F8FC),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: image.isNotEmpty
+                          ? Image.network(
+                              proxyImageUrl(image),
+                              width: 52,
+                              height: 52,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 52,
+                                height: 52,
+                                color: Colors.grey.shade100,
+                                child: const Icon(Icons.image_not_supported_outlined),
+                              ),
+                            )
+                          : Container(
+                              width: 52,
+                              height: 52,
+                              color: Colors.grey.shade100,
+                              child: const Icon(Icons.shopping_bag_outlined),
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        baseName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ...sellers.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final seller = entry.value;
+                  final platform = (seller["platform"] ?? "").toString().trim();
+                  final price = (seller["price"] ?? "").toString().trim();
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        if (index == 0)
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: primaryColor,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              "En ucuz",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: Text(
+                            platform.isNotEmpty ? platform : "Satıcı",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          price,
+                          style: TextStyle(
+                            color: primaryColor,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          );
+        }),
+      ],
+    ),
+  );
+}
+
 Widget buildChatItem(ChatMessage message) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1905,6 +2080,9 @@ else if (!message.isUser && message.products.isNotEmpty)
 
       if (!message.isUser && message.comparison != null)
         buildComparisonBox(message.comparison!),
+
+        if (!message.isUser && message.sellerComparison != null)
+  buildSellerComparisonCard(message.sellerComparison!),
 
       if (!message.isUser && message.actions.isNotEmpty)
         Padding(

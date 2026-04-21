@@ -266,6 +266,7 @@ const aiResult = await generateChatReply({
       comparison: aiResult.comparison || null,
       detailCard: aiResult.detailCard || null,
       reviewCard: aiResult.reviewCard || null,
+      sellerComparison: aiResult.sellerComparison || null,
       contextProduct: null,
     });
 
@@ -278,6 +279,7 @@ const aiResult = await generateChatReply({
       comparison: safeComparison,
       detailCard: safeDetailCard,
       reviewCard: safeReviewCard,
+      sellerComparison: aiResult.sellerComparison || null,
       chat,
     });
   } catch (error) {
