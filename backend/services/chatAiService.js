@@ -1362,7 +1362,10 @@ async function generateChatReply({
 
 {
   if (selectedProduct) {
-    console.log("SELECTED PRODUCT FLOW ACTIVE FOR:", selectedProduct.name);
+    console.log(
+      "SELECTED PRODUCT FLOW ACTIVE FOR:",
+      selectedProduct ? selectedProduct.name : null
+    );
     console.log("SELECTED PRODUCT USER MESSAGE:", userMessage);
     console.log(
       "SELECTED PRODUCT SELLER INTENT:",
@@ -1376,7 +1379,7 @@ async function generateChatReply({
   
       if (!sellerComparison) {
         return {
-          assistantText: `"${selectedProduct.name}" için farklı satıcıları bulamadım.`,
+          assistantText: `"${selectedProduct?.name || 'Bu ürün'}" için farklı satıcıları bulamadım.`,
           products: [],
           actions: [],
           comparison: null,
@@ -1387,7 +1390,7 @@ async function generateChatReply({
       }
   
       return {
-        assistantText: `"${selectedProduct.name}" için farklı satıcıları buldum.`,
+        assistantText: `"${selectedProduct?.name || 'Bu ürün'}" için farklı satıcıları buldum.`,
         products: [],
         actions: [],
         comparison: null,
@@ -1412,11 +1415,11 @@ async function generateChatReply({
         detailCard: null,
         reviewCard: {
           product: {
-            name: selectedProduct.name || '',
-            price: selectedProduct.price || '',
-            platform: selectedProduct.platform || '',
-            image: selectedProduct.image || '',
-            link: selectedProduct.link || '',
+            name: selectedProduct?.name || '',
+            price: selectedProduct?.price || '',
+            platform: selectedProduct?.platform || '',
+            image: selectedProduct?.image || '',
+            link: selectedProduct?.link || '',
           },
           title: reviewResult.title || 'Yorum özeti',
           items: Array.isArray(reviewResult.items)
@@ -1441,11 +1444,11 @@ async function generateChatReply({
       reviewCard: null,
       detailCard: {
         product: {
-          name: selectedProduct.name || '',
-          price: selectedProduct.price || '',
-          platform: selectedProduct.platform || '',
-          image: selectedProduct.image || '',
-          link: selectedProduct.link || '',
+          name: selectedProduct?.name || '',
+          price: selectedProduct?.price || '',
+          platform: selectedProduct?.platform || '',
+          image: selectedProduct?.image || '',
+          link: selectedProduct?.link || '',
         },
         title: detailResult.title || 'Ürün detayı',
         bullets: Array.isArray(detailResult.bullets)
@@ -1563,7 +1566,10 @@ ${userMessage}
   console.log("GLOBAL SELECTED PRODUCT:", selectedProduct ? selectedProduct.name : null);
 
 
-  console.log("SELECTED PRODUCT FLOW ACTIVE FOR:", selectedProduct.name);
+  console.log(
+    "SELECTED PRODUCT FLOW ACTIVE FOR:",
+    selectedProduct ? selectedProduct.name : null
+  );
   console.log("SELECTED PRODUCT SELLER INTENT:", isSellerComparisonRequest(userMessage));
   console.log("SELECTED PRODUCT USER MESSAGE:", userMessage);
 
