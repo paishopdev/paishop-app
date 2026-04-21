@@ -1,5 +1,5 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/profile_service.dart';
@@ -9,11 +9,11 @@ class ProfileEditScreen extends StatefulWidget {
   const ProfileEditScreen({
     super.key,
     required this.currentName,
-    required this.currentAvatarPath,
+    required this.currentAvatarBase64,
   });
 
   final String currentName;
-  final String? currentAvatarPath;
+  final String? currentAvatarBase64;
 
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
@@ -21,14 +21,14 @@ class ProfileEditScreen extends StatefulWidget {
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController nameController;
-  String? avatarPath;
+  String? avatarBase64;
   final Color primaryColor = const Color(0xFF6C63FF);
 
   @override
   void initState() {
     super.initState();
     nameController = TextEditingController(text: widget.currentName);
-    avatarPath = widget.currentAvatarPath;
+    avatarBase64 = widget.currentAvatarBase64;
   }
 
   @override
@@ -48,8 +48,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       if (file == null) return;
       if (!mounted) return;
 
+      final bytes = await file.readAsBytes();
+      final encoded = base64Encode(bytes);
+
       setState(() {
-        avatarPath = file.path;
+        avatarBase64 = encoded;
       });
     } catch (e) {
       debugPrint("PROFILE IMAGE PICK ERROR: $e");
@@ -77,7 +80,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
     try {
       await ProfileService.saveDisplayName(name);
-      await ProfileService.saveAvatarPath(avatarPath);
+      await ProfileService.saveAvatarBase64(avatarBase64);
 
       if (!mounted) return;
       Navigator.pop(context);
@@ -98,27 +101,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ? nameController.text.trim()[0].toUpperCase()
         : 'P';
 
-    if (avatarPath != null && avatarPath!.trim().isNotEmpty) {
-      final path = avatarPath!.trim();
+    if (avatarBase64 != null && avatarBase64!.trim().isNotEmpty) {
+      try {
+        final Uint8List bytes = base64Decode(avatarBase64!);
 
-      if (path.startsWith('http://') || path.startsWith('https://')) {
         return CircleAvatar(
           radius: 42,
-          backgroundImage: NetworkImage(path),
+          backgroundImage: MemoryImage(bytes),
         );
+      } catch (e) {
+        debugPrint("PROFILE AVATAR DECODE ERROR: $e");
       }
-
-      if (kIsWeb) {
-        return CircleAvatar(
-          radius: 42,
-          backgroundImage: NetworkImage(path),
-        );
-      }
-
-      return CircleAvatar(
-        radius: 42,
-        backgroundImage: FileImage(File(path)),
-      );
     }
 
     return CircleAvatar(

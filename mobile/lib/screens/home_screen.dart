@@ -76,7 +76,7 @@ bool isListening = false;
   String userId = '';
   String firstName = '';
   String displayName = '';
-String? avatarPath;
+String? avatarBase64;
 
   Set<String> favoriteLinks = {};
 
@@ -589,32 +589,28 @@ void initState() {
   initUserAndChats();
 }
 
-  Future<void> loadProfileCard() async {
+Future<void> loadProfileCard() async {
   final name = await ProfileService.getDisplayName(
     fallbackFirstName: firstName,
   );
-  final avatar = await ProfileService.getAvatarPath();
+  final avatar = await ProfileService.getAvatarBase64();
 
   setState(() {
     displayName = name;
-    avatarPath = avatar;
+    avatarBase64 = avatar;
   });
 }
 
-ImageProvider? getAvatarImageProvider(String? path) {
-  if (path == null || path.trim().isEmpty) return null;
+ImageProvider? getAvatarImageProvider(String? base64Value) {
+  if (base64Value == null || base64Value.trim().isEmpty) return null;
 
-  final cleanPath = path.trim();
-
-  if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-    return NetworkImage(cleanPath);
+  try {
+    final bytes = base64Decode(base64Value);
+    return MemoryImage(bytes);
+  } catch (e) {
+    debugPrint("HOME AVATAR DECODE ERROR: $e");
+    return null;
   }
-
-  if (kIsWeb) {
-    return NetworkImage(cleanPath);
-  }
-
-  return FileImage(File(cleanPath));
 }
 
 String getAvatarInitial(String? name) {
@@ -624,7 +620,7 @@ String getAvatarInitial(String? name) {
 }
 
 Widget buildDrawerAvatar() {
-  final imageProvider = getAvatarImageProvider(avatarPath);
+  final imageProvider = getAvatarImageProvider(avatarBase64);
 
   if (imageProvider != null) {
     return CircleAvatar(
@@ -1626,6 +1622,8 @@ Widget buildDetailCard(Map<String, dynamic> detailCard) {
       ? List<String>.from(detailCard["bullets"])
       : <String>[];
 
+      final imageUrl = (product["image"] ?? "").toString().trim();
+
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     padding: const EdgeInsets.all(14),
@@ -1648,28 +1646,27 @@ Widget buildDetailCard(Map<String, dynamic> detailCard) {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: product["image"] != null &&
-                      product["image"].toString().isNotEmpty
-                  ? Image.network(
-                      'https://paishop-api.onrender.com/image-proxy?url=${Uri.encodeComponent(product["image"].toString())}',
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 64,
-                        height: 64,
-                        color: Colors.grey.shade100,
-                        child: const Icon(Icons.image_not_supported_outlined),
-                      ),
-                    )
-                  : Container(
-                      width: 64,
-                      height: 64,
-                      color: Colors.grey.shade100,
-                      child: const Icon(Icons.shopping_bag_outlined),
-                    ),
-            ),
+  borderRadius: BorderRadius.circular(14),
+  child: imageUrl.isNotEmpty
+      ? Image.network(
+          proxyImageUrl(imageUrl),
+          width: 64,
+          height: 64,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: 64,
+            height: 64,
+            color: Colors.grey.shade100,
+            child: const Icon(Icons.image_not_supported_outlined),
+          ),
+        )
+      : Container(
+          width: 64,
+          height: 64,
+          color: Colors.grey.shade100,
+          child: const Icon(Icons.shopping_bag_outlined),
+        ),
+),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1752,6 +1749,8 @@ Widget buildReviewCard(Map<String, dynamic> reviewCard) {
       ? List<String>.from(reviewCard["items"])
       : <String>[];
 
+      final imageUrl = (product["image"] ?? "").toString().trim();
+
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     padding: const EdgeInsets.all(14),
@@ -1774,28 +1773,27 @@ Widget buildReviewCard(Map<String, dynamic> reviewCard) {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: product["image"] != null &&
-                      product["image"].toString().isNotEmpty
-                  ? Image.network(
-                      'https://paishop-api.onrender.com/image-proxy?url=${Uri.encodeComponent(product["image"].toString())}',
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 64,
-                        height: 64,
-                        color: Colors.grey.shade100,
-                        child: const Icon(Icons.image_not_supported_outlined),
-                      ),
-                    )
-                  : Container(
-                      width: 64,
-                      height: 64,
-                      color: Colors.grey.shade100,
-                      child: const Icon(Icons.shopping_bag_outlined),
-                    ),
-            ),
+  borderRadius: BorderRadius.circular(14),
+  child: imageUrl.isNotEmpty
+      ? Image.network(
+          proxyImageUrl(imageUrl),
+          width: 64,
+          height: 64,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            width: 64,
+            height: 64,
+            color: Colors.grey.shade100,
+            child: const Icon(Icons.image_not_supported_outlined),
+          ),
+        )
+      : Container(
+          width: 64,
+          height: 64,
+          color: Colors.grey.shade100,
+          child: const Icon(Icons.shopping_bag_outlined),
+        ),
+),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -2335,85 +2333,95 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
     ),
   ),
 ),
-if (selectedProductContext != null)
-  Container(
-    margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF3F1FF),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: const Color(0xFF6C63FF).withOpacity(0.12),
-      ),
-    ),
-    child: Row(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: selectedProductContext!.image.isNotEmpty
-              ? Image.network(
-                  'https://paishop-api.onrender.com/image-proxy?url=${Uri.encodeComponent(selectedProductContext!.image)}',
-                  width: 38,
-                  height: 38,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 38,
-                    height: 38,
-                    color: Colors.white,
-                    child: const Icon(
-                      Icons.image_not_supported_outlined,
-                      size: 18,
-                    ),
-                  ),
-                )
-              : Container(
-                  width: 38,
-                  height: 38,
-                  color: Colors.white,
-                  child: const Icon(
-                    Icons.shopping_bag_outlined,
-                    size: 18,
-                  ),
-                ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Seçili ürün",
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF6C63FF),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                selectedProductContext!.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
+if (selectedProductContext != null) 
+  Builder(
+    builder: (context) {
+      final selectedImage = (selectedProductContext!.image).trim();
+
+      return Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3F1FF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF6C63FF).withOpacity(0.12),
           ),
         ),
-        IconButton(
-          onPressed: () {
-            setState(() {
-              selectedProductContext = null;
-            });
-          },
-          icon: const Icon(Icons.close_rounded, size: 18),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: selectedImage.isNotEmpty
+                  ? Image.network(
+                      proxyImageUrl(selectedImage),
+                      width: 38,
+                      height: 38,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint("SELECTED PRODUCT IMAGE FAIL RAW: $selectedImage");
+                        return Container(
+                          width: 38,
+                          height: 38,
+                          color: Colors.white,
+                          child: const Icon(
+                            Icons.image_not_supported_outlined,
+                            size: 18,
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      width: 38,
+                      height: 38,
+                      color: Colors.white,
+                      child: const Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 18,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Seçili ürün",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF6C63FF),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    selectedProductContext!.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  selectedProductContext = null;
+                });
+              },
+              icon: const Icon(Icons.close_rounded, size: 18),
+            ),
+          ],
         ),
-      ],
-    ),
+      );
+    },
   ),
+
 if (selectedGalleryImages.isNotEmpty)
   Container(
     width: double.infinity,

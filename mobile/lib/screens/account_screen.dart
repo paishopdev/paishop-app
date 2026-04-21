@@ -1,11 +1,11 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
 import '../utils/app_notice.dart';
 import 'profile_edit_screen.dart';
 import 'profile_screen.dart';
-import 'package:flutter/foundation.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -20,7 +20,7 @@ class _AccountScreenState extends State<AccountScreen> {
   String email = '';
   String phone = '';
   String displayName = '';
-  String? avatarPath;
+  String? avatarBase64;
   bool notificationsEnabled = true;
 
   final Color primaryColor = const Color(0xFF6C63FF);
@@ -37,7 +37,7 @@ class _AccountScreenState extends State<AccountScreen> {
     final name = await ProfileService.getDisplayName(
       fallbackFirstName: user['firstName'] ?? '',
     );
-    final avatar = await ProfileService.getAvatarPath();
+    final avatar = await ProfileService.getAvatarBase64();
     final notifications = await ProfileService.getNotificationsEnabled();
 
     setState(() {
@@ -45,7 +45,7 @@ class _AccountScreenState extends State<AccountScreen> {
       lastName = user['lastName'] ?? '';
       email = user['email'] ?? '';
       displayName = name.isEmpty ? (user['firstName'] ?? '') : name;
-      avatarPath = avatar;
+      avatarBase64 = avatar;
       notificationsEnabled = notifications;
       phone = 'Telefon bilgisi yakında gösterilecek';
     });
@@ -57,7 +57,7 @@ class _AccountScreenState extends State<AccountScreen> {
       MaterialPageRoute(
         builder: (_) => ProfileEditScreen(
           currentName: displayName.isEmpty ? firstName : displayName,
-          currentAvatarPath: avatarPath,
+          currentAvatarBase64: avatarBase64,
         ),
       ),
     );
@@ -71,47 +71,37 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-Widget buildAvatar() {
-  final initial = displayName.trim().isNotEmpty
-      ? displayName.trim()[0].toUpperCase()
-      : 'P';
+  Widget buildAvatar() {
+    final initial = displayName.trim().isNotEmpty
+        ? displayName.trim()[0].toUpperCase()
+        : 'P';
 
-  if (avatarPath != null && avatarPath!.trim().isNotEmpty) {
-    final path = avatarPath!.trim();
+    if (avatarBase64 != null && avatarBase64!.trim().isNotEmpty) {
+      try {
+        final Uint8List bytes = base64Decode(avatarBase64!);
 
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return CircleAvatar(
-        radius: 42,
-        backgroundImage: NetworkImage(path),
-      );
-    }
-
-    if (kIsWeb) {
-      return CircleAvatar(
-        radius: 42,
-        backgroundImage: NetworkImage(path),
-      );
+        return CircleAvatar(
+          radius: 42,
+          backgroundImage: MemoryImage(bytes),
+        );
+      } catch (e) {
+        debugPrint("ACCOUNT AVATAR DECODE ERROR: $e");
+      }
     }
 
     return CircleAvatar(
       radius: 42,
-      backgroundImage: FileImage(File(path)),
+      backgroundColor: primaryColor.withOpacity(0.12),
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: primaryColor,
+          fontSize: 30,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
-
-  return CircleAvatar(
-    radius: 42,
-    backgroundColor: primaryColor.withOpacity(0.12),
-    child: Text(
-      initial,
-      style: TextStyle(
-        color: primaryColor,
-        fontSize: 30,
-        fontWeight: FontWeight.w800,
-      ),
-    ),
-  );
-}
 
   Widget buildSectionCard(List<Widget> children) {
     return Container(
@@ -232,54 +222,54 @@ Widget buildAvatar() {
             ),
           ),
           buildSectionCard([
-  buildInfoTile(
-    icon: Icons.email_outlined,
-    title: 'E-posta',
-    subtitle: email.isEmpty ? 'Bilgi yok' : email,
-    trailing: const Icon(Icons.lock_outline_rounded),
-  ),
-  Divider(height: 1, color: Colors.grey.shade200),
-  buildInfoTile(
-    icon: Icons.phone_outlined,
-    title: 'Telefon',
-    subtitle: phone,
-    trailing: const Icon(Icons.lock_outline_rounded),
-  ),
-  Divider(height: 1, color: Colors.grey.shade200),
-  buildInfoTile(
-    icon: Icons.straighten_rounded,
-    title: 'Beden & Stil Bilgilerim',
-    subtitle: 'Ayakkabı numarası, beden, boy, kilo ve stil bilgilerini yönet',
-    onTap: () async {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const ProfileScreen(),
-        ),
-      );
-    },
-  ),
-  Divider(height: 1, color: Colors.grey.shade200),
-  buildInfoTile(
-    icon: Icons.workspace_premium_outlined,
-    title: 'Abonelik Durumu',
-    subtitle: 'Free Plan',
-    trailing: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: primaryColor.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        'Free',
-        style: TextStyle(
-          color: primaryColor,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    ),
-  ),
-]),
+            buildInfoTile(
+              icon: Icons.email_outlined,
+              title: 'E-posta',
+              subtitle: email.isEmpty ? 'Bilgi yok' : email,
+              trailing: const Icon(Icons.lock_outline_rounded),
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+            buildInfoTile(
+              icon: Icons.phone_outlined,
+              title: 'Telefon',
+              subtitle: phone,
+              trailing: const Icon(Icons.lock_outline_rounded),
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+            buildInfoTile(
+              icon: Icons.straighten_rounded,
+              title: 'Beden & Stil Bilgilerim',
+              subtitle: 'Ayakkabı numarası, beden, boy, kilo ve stil bilgilerini yönet',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ProfileScreen(),
+                  ),
+                );
+              },
+            ),
+            Divider(height: 1, color: Colors.grey.shade200),
+            buildInfoTile(
+              icon: Icons.workspace_premium_outlined,
+              title: 'Abonelik Durumu',
+              subtitle: 'Free Plan',
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Free',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ]),
           buildSectionCard([
             buildInfoTile(
               icon: Icons.rocket_launch_outlined,

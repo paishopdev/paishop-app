@@ -2,7 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileService {
   static const _displayNameKey = 'profile_display_name';
-  static const _avatarPathKey = 'profile_avatar_path';
+  static const _avatarBase64Key = 'profile_avatar_base64';
   static const _notificationsKey = 'profile_notifications_enabled';
 
   static Future<String> getDisplayName({
@@ -17,17 +17,17 @@ class ProfileService {
     await prefs.setString(_displayNameKey, value);
   }
 
-  static Future<String?> getAvatarPath() async {
+  static Future<String?> getAvatarBase64() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_avatarPathKey);
+    return prefs.getString(_avatarBase64Key);
   }
 
-  static Future<void> saveAvatarPath(String? value) async {
+  static Future<void> saveAvatarBase64(String? value) async {
     final prefs = await SharedPreferences.getInstance();
     if (value == null || value.isEmpty) {
-      await prefs.remove(_avatarPathKey);
+      await prefs.remove(_avatarBase64Key);
     } else {
-      await prefs.setString(_avatarPathKey, value);
+      await prefs.setString(_avatarBase64Key, value);
     }
   }
 
