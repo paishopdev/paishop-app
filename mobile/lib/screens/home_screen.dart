@@ -113,6 +113,13 @@ String shortenContextTitle(String text) {
     debugPrint(e.toString());
   }
 }
+String proxyImageUrl(String rawUrl) {
+  final clean = rawUrl.trim();
+  if (clean.isEmpty) return '';
+
+  final encoded = Uri.encodeComponent(clean);
+  return "https://paishop-api.onrender.com/api/image-proxy?url=$encoded";
+}
 
   Future<void> toggleFavorite(Product product) async {
   if (userId.isEmpty || product.link.isEmpty) return;
@@ -1334,10 +1341,10 @@ debugPrint("COMPARISON UI DATA: $comparison");
               borderRadius: BorderRadius.circular(18),
               child: imageUrl.isNotEmpty
                   ? Image.network(
-  imageUrl,
+  proxyImageUrl(imageUrl),
   fit: BoxFit.cover,
   errorBuilder: (context, error, stackTrace) {
-    debugPrint("IMAGE FAIL: $imageUrl");
+    debugPrint("IMAGE FAIL RAW: $imageUrl");
     return Container(
       color: Colors.grey.shade200,
       child: const Icon(Icons.image_not_supported),
