@@ -18,7 +18,7 @@ import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 
 
 class ChatMessage {
@@ -186,9 +186,13 @@ String proxyImageUrl(String rawUrl) {
 }
 
 void askAboutProduct(Product product) {
+  debugPrint("ASK ABOUT PRODUCT CLICKED: ${product.name}");
   setState(() {
     selectedProductContext = product;
   });
+  debugPrint("SELECTED PRODUCT CONTEXT SET: ${selectedProductContext?.name}");
+
+  FocusScope.of(context).requestFocus(inputFocusNode);
 }
 
 Future<void> startListening() async {
@@ -944,6 +948,10 @@ Future<void> search() async {
 
   scrollToBottom();
 
+  debugPrint("QUERY TO SEND: $query");
+debugPrint("SELECTED CONTEXT BEFORE SEND: ${selectedContextBeforeSend?.name}");
+debugPrint("CURRENT STATE CONTEXT: ${selectedProductContext?.name}");
+
   try {
     final result = await ChatService.sendMessage(
       chatId: chatIdForRequest,
@@ -984,21 +992,19 @@ Future<void> search() async {
     // 🔥 SADECE hala aynı chat açıksa ekle
     if (chatIdForRequest == currentChatId) {
       setState(() {
-        messages.add(
-          ChatMessage(
-            text: rawAssistantText,
-            isUser: false,
-            products: products,
-            actions: actions,
-            comparison: comparison,
-            detailCard: detailCard,
-            reviewCard: reviewCard,
-            sellerComparison: sellerComparison,
-          ),
-        );
-
-        selectedProductContext = null;
-      });
+  messages.add(
+    ChatMessage(
+      text: rawAssistantText,
+      isUser: false,
+      products: products,
+      actions: actions,
+      comparison: comparison,
+      detailCard: detailCard,
+      reviewCard: reviewCard,
+      sellerComparison: sellerComparison,
+    ),
+  );
+});
 
       scrollToBottom();
     }
@@ -1915,7 +1921,8 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
           final image = (group["image"] ?? "").toString().trim();
           final sellers = group["sellers"] is List
               ? List<Map<String, dynamic>>.from(
-                  (group["sellers"] as List).map((e) => Map<String, dynamic>.from(e)),
+                  (group["sellers"] as List)
+                      .map((e) => Map<String, dynamic>.from(e)),
                 )
               : <Map<String, dynamic>>[];
 
@@ -1944,7 +1951,9 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
                                 width: 52,
                                 height: 52,
                                 color: Colors.grey.shade100,
-                                child: const Icon(Icons.image_not_supported_outlined),
+                                child: const Icon(
+                                  Icons.image_not_supported_outlined,
+                                ),
                               ),
                             )
                           : Container(
@@ -1972,22 +1981,39 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
                 ...sellers.asMap().entries.map((entry) {
                   final index = entry.key;
                   final seller = entry.value;
-                  final platform = (seller["platform"] ?? "").toString().trim();
+                  final platform =
+                      (seller["platform"] ?? "").toString().trim();
                   final price = (seller["price"] ?? "").toString().trim();
+                  final link = (seller["link"] ?? "").toString().trim();
+                  final sellerName = (seller["name"] ?? "").toString().trim();
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: index == 0
+                          ? const Color(0xFFF3F1FF)
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: index == 0
+                            ? primaryColor.withOpacity(0.14)
+                            : Colors.grey.shade200,
+                      ),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (index == 0)
                           Container(
                             margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: primaryColor,
                               borderRadius: BorderRadius.circular(999),
@@ -2002,21 +2028,81 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
                             ),
                           ),
                         Expanded(
-                          child: Text(
-                            platform.isNotEmpty ? platform : "Satıcı",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                platform.isNotEmpty ? platform : "Satıcı",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              if (sellerName.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    sellerName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                        Text(
-                          price,
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                          ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              price,
+                              style: TextStyle(
+                                color: primaryColor,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            TextButton(
+                              onPressed: link.isEmpty
+                                  ? null
+                                  : () async {
+                                      String url = link;
+                                      if (!url.startsWith('http://') &&
+                                          !url.startsWith('https://')) {
+                                        url = 'https://$url';
+                                      }
+
+                                      final uri = Uri.parse(url);
+                                      await launchUrl(
+                                        uri,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    },
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                foregroundColor: primaryColor,
+                              ),
+                              child: const Text(
+                                "Ürüne Git",
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -2030,7 +2116,6 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
     ),
   );
 }
-
 Widget buildChatItem(ChatMessage message) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,

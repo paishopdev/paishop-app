@@ -1362,7 +1362,40 @@ async function generateChatReply({
 
 {
   if (selectedProduct) {
-    console.log("DETAIL FLOW ACTIVE FOR:", selectedProduct.name);
+    console.log("SELECTED PRODUCT FLOW ACTIVE FOR:", selectedProduct.name);
+    console.log("SELECTED PRODUCT USER MESSAGE:", userMessage);
+    console.log(
+      "SELECTED PRODUCT SELLER INTENT:",
+      isSellerComparisonRequest(userMessage)
+    );
+  
+    if (isSellerComparisonRequest(userMessage)) {
+      const sellerComparison = await buildSellerComparisonFromSearch({
+        baseProduct: selectedProduct,
+      });
+  
+      if (!sellerComparison) {
+        return {
+          assistantText: `"${selectedProduct.name}" için farklı satıcıları bulamadım.`,
+          products: [],
+          actions: [],
+          comparison: null,
+          detailCard: null,
+          reviewCard: null,
+          sellerComparison: null,
+        };
+      }
+  
+      return {
+        assistantText: `"${selectedProduct.name}" için farklı satıcıları buldum.`,
+        products: [],
+        actions: [],
+        comparison: null,
+        detailCard: null,
+        reviewCard: null,
+        sellerComparison,
+      };
+    }
   
     if (isReviewRequest(userMessage)) {
       const reviewResult = await generateSelectedProductReviews({
@@ -1390,10 +1423,9 @@ async function generateChatReply({
             ? reviewResult.items.slice(0, 5)
             : [],
         },
+        sellerComparison: null,
       };
     }
-
-    
   
     const detailResult = await generateSelectedProductDetail({
       selectedProduct,
@@ -1420,6 +1452,7 @@ async function generateChatReply({
           ? detailResult.bullets.slice(0, 4)
           : [],
       },
+      sellerComparison: null,
     };
   }
   console.log("NEW GENERATECHATREPLY ACTIVE:", userMessage);
@@ -1525,6 +1558,79 @@ ${userMessage}
   const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
   const isSellerCompare = isSellerComparisonRequest(userMessage);
+  console.log("GLOBAL SELLER COMPARE:", isSellerCompare);
+  console.log("GLOBAL USER MESSAGE:", userMessage);
+  console.log("GLOBAL SELECTED PRODUCT:", selectedProduct ? selectedProduct.name : null);
+
+
+  console.log("SELECTED PRODUCT FLOW ACTIVE FOR:", selectedProduct.name);
+  console.log("SELECTED PRODUCT SELLER INTENT:", isSellerComparisonRequest(userMessage));
+  console.log("SELECTED PRODUCT USER MESSAGE:", userMessage);
+
+  if (isSellerCompare && !selectedProduct) {
+    const latestBatch = extractLastProductBatch(previousMessages);
+  
+    const referencedProduct = resolveProductReference(userMessage, latestBatch);
+  
+    if (!referencedProduct) {
+      return {
+        assistantText:
+          'Tabii, satıcı karşılaştırması yapabilmem için önce hangi ürünü baz alacağımı bilmem gerekiyor. Üstteki ürünlerden birine dokunup Sor diyebilir ya da ilk ürün / ikinci ürün diye yazabilirsin.',
+        products: [],
+        actions: [],
+        comparison: null,
+        detailCard: null,
+        reviewCard: null,
+        sellerComparison: null,
+      };
+    }
+  }
+
+  if (isSellerCompare) {
+    const baseProduct = resolveSellerBaseProduct({
+      userMessage,
+      selectedProduct,
+      previousMessages,
+    });
+  
+    if (!baseProduct) {
+      return {
+        assistantText: 'Hangi ürünü baz alayım? Üstteki ürünlerden birine dokunabilir ya da ilk ürün / ikinci ürün diye yazabilirsin.',
+        products: [],
+        actions: [],
+        comparison: null,
+        detailCard: null,
+        reviewCard: null,
+        sellerComparison: null,
+      };
+    }
+  
+    const sellerComparison = await buildSellerComparisonFromSearch({
+      baseProduct,
+    });
+  
+    if (!sellerComparison) {
+      return {
+        assistantText: 'Bu ürün için farklı satıcıları bulamadım.',
+        products: [],
+        actions: [],
+        comparison: null,
+        detailCard: null,
+        reviewCard: null,
+        sellerComparison: null,
+      };
+    }
+  
+    return {
+      assistantText: `"${baseProduct.name}" için farklı satıcıları buldum.`,
+      products: [],
+      actions: [],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      sellerComparison,
+    };
+  }
 
   const actionCommand = detectActionCommand(userMessage);
   const latestBatchProducts = extractLastProductBatch(previousMessages);
@@ -1947,6 +2053,8 @@ const finalActions =
         products: [],
         actions: [],
         comparison: null,
+        detailCard: null,
+        reviewCard: null,
         sellerComparison,
       };
     }
@@ -1958,6 +2066,77 @@ const finalActions =
     actions: finalActions,
     comparison,
   };
+}
+
+async function buildSellerComparisonFromSearch({
+  baseProduct,
+}) {
+  if (!baseProduct || !baseProduct.name) return null;
+
+  console.log("SELLER SEARCH FOR:", baseProduct.name);
+
+  const rawResults = await searchGoogleShopping(baseProduct.name);
+
+  const normalized = normalizeProducts(rawResults);
+
+  const targetKey = normalizeSellerKey(baseProduct.name);
+
+  const sameProducts = normalized.filter((item) => {
+    const itemKey = normalizeSellerKey(item.name);
+
+    if (!itemKey) return false;
+
+    if (itemKey === targetKey) return true;
+
+    if (itemKey.includes(targetKey)) return true;
+
+    if (targetKey.includes(itemKey)) return true;
+
+    const words = targetKey.split(' ').filter(Boolean);
+
+    const matchCount = words.filter((w) => itemKey.includes(w)).length;
+
+    return matchCount >= Math.max(2, Math.ceil(words.length * 0.6));
+  });
+
+  const finalList = sameProducts.length > 0 ? sameProducts : normalized;
+
+  const grouped = groupProductsBySeller(finalList);
+
+  if (!grouped.length) return null;
+
+  return {
+    title: 'Satıcı karşılaştırması',
+    groups: grouped,
+  };
+}
+
+function normalizeSellerKey(name = '') {
+  return normalizeText(name)
+    .replace(/erkek|kadin|bayan|unisex/g, '')
+    .replace(/ayakkabi|sneaker|lifestyle|originals/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function resolveSellerBaseProduct({
+  userMessage,
+  selectedProduct,
+  previousMessages,
+}) {
+  if (selectedProduct && selectedProduct.name) {
+    return selectedProduct;
+  }
+
+  const latestBatch = extractLastProductBatch(previousMessages);
+
+  const referenced = resolveProductReference(userMessage, latestBatch);
+
+  if (referenced) return referenced;
+
+  if (latestBatch.length === 1) return latestBatch[0];
+
+  return null;
 }
 
 async function generateChatTitle(firstMessage) {
@@ -2104,26 +2283,38 @@ function groupProductsBySeller(products = []) {
     .sort((a, b) => b.sellers.length - a.sellers.length);
 }
 
+
+
 function isSellerComparisonRequest(userMessage = '') {
-  const text = normalizeText(userMessage);
+  const text = normalizeText(userMessage)
+    .replace(/\s+/g, ' ')
+    .trim();
 
   return (
-    text.includes('satıcı') ||
+    text.includes('satici') ||
+    text.includes('saticilar') ||
     text.includes('magaza') ||
-    text.includes('mağaza') ||
+    text.includes('magazalar') ||
     text.includes('farkli satici') ||
-    text.includes('farklı satıcı') ||
+    text.includes('farkli saticilar') ||
+    text.includes('farkli magazada') ||
+    text.includes('farkli magazalarda') ||
     text.includes('ayni urun') ||
-    text.includes('aynı ürün') ||
+    text.includes('ayni urunu') ||
     text.includes('en ucuz satici') ||
-    text.includes('en ucuz satıcı') ||
     text.includes('saticilar arasinda') ||
-    text.includes('satıcılar arasında')
+    text.includes('hangi magazada') ||
+    text.includes('nerede daha ucuz') ||
+    text.includes('fiyat karsilastir') ||
+    text.includes('fiyatlari karsilastir') ||
+    text.includes('bunu farkli') ||
+    text.includes('bunu saticilarda') ||
+    text.includes('bunu magazalarda')
   );
 }
 
 function buildSellerComparisonData(products = []) {
-  const grouped = groupProductsBySeller(products).slice(0, 3);
+  const grouped = groupProductsBySeller(products).slice(0, 10);
 
   if (!grouped.length) return null;
 
@@ -2134,7 +2325,7 @@ function buildSellerComparisonData(products = []) {
       image: group.image,
       cheapestSeller: group.cheapestSeller,
       priceSpread: group.priceSpread,
-      sellers: group.sellers.slice(0, 5),
+      sellers: group.sellers
     })),
   };
 }

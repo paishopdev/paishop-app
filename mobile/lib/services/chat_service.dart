@@ -96,6 +96,7 @@ class ChatService {
     required String message,
     Product? selectedProduct,
   }) async {
+    print("SEND MESSAGE SELECTED PRODUCT: ${selectedProduct?.name}");
     final response = await http.post(
       Uri.parse("$baseUrl/$chatId/send"),
       headers: {"Content-Type": "application/json"},
