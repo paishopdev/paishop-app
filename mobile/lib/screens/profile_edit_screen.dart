@@ -22,6 +22,8 @@ class ProfileEditScreen extends StatefulWidget {
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
   late final TextEditingController nameController;
   String? avatarBase64;
+  bool saving = false;
+
   final Color primaryColor = const Color(0xFF6C63FF);
 
   @override
@@ -66,7 +68,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+void removeAvatar() {
+  setState(() {
+    avatarBase64 = null;
+  });
+
+  showAppNotice(
+    context,
+    message: 'Fotoğraf kaldırıldı',
+  );
+}
+
   Future<void> save() async {
+    if (saving) return;
+
     final name = nameController.text.trim();
 
     if (name.isEmpty) {
@@ -78,12 +93,25 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       return;
     }
 
+    setState(() {
+      saving = true;
+    });
+
     try {
       await ProfileService.saveDisplayName(name);
       await ProfileService.saveAvatarBase64(avatarBase64);
 
       if (!mounted) return;
-      Navigator.pop(context);
+
+      showAppNotice(
+        context,
+        message: 'Profil kaydedildi',
+      );
+
+      Navigator.pop(context, {
+        'name': name,
+        'avatarBase64': avatarBase64,
+      });
     } catch (e) {
       debugPrint("PROFILE SAVE ERROR: $e");
 
@@ -93,6 +121,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         message: 'Profil kaydedilemedi',
         isError: true,
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          saving = false;
+        });
+      }
     }
   }
 
@@ -130,6 +164,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasAvatar = avatarBase64 != null && avatarBase64!.trim().isNotEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
       appBar: AppBar(
@@ -166,14 +202,31 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               children: [
                 buildAvatar(),
                 const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  onPressed: pickImage,
-                  icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Fotoğraf Seç'),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: saving ? null : pickImage,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Fotoğraf Seç'),
+                    ),
+                    if (hasAvatar)
+                      OutlinedButton.icon(
+                        onPressed: saving ? null : removeAvatar,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        label: const Text('Fotoğrafı Kaldır'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 TextField(
                   controller: nameController,
+                  enabled: !saving,
                   onChanged: (_) {
                     setState(() {});
                   },
@@ -192,7 +245,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: save,
+                    onPressed: saving ? null : save,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       foregroundColor: Colors.white,
@@ -202,7 +255,16 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text('Kaydet'),
+                    child: saving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Kaydet'),
                   ),
                 ),
               ],

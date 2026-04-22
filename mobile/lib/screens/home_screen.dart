@@ -918,41 +918,38 @@ Future<void> search() async {
 
   final selectedContextBeforeSend = selectedProductContext;
 
-  // 🔥 Chat ID'yi SABİTLE
   String chatIdForRequest = currentChatId;
-
-  // Eğer yeni chat ise önce oluştur
-  if (chatIdForRequest.isEmpty) {
-    await createNewChatIfNeeded(query);
-    chatIdForRequest = currentChatId;
-  }
 
   setState(() {
     loading = true;
-    controller.clear();
   });
 
-  // 🔥 SADECE o chat için mesajı ekle
-  if (chatIdForRequest == currentChatId) {
-    setState(() {
-      messages.add(
-        ChatMessage(
-          text: query,
-          isUser: true,
-          contextTitle: selectedContextBeforeSend?.name,
-          contextImage: selectedContextBeforeSend?.image,
-        ),
-      );
-    });
-  }
-
-  scrollToBottom();
-
-  debugPrint("QUERY TO SEND: $query");
-debugPrint("SELECTED CONTEXT BEFORE SEND: ${selectedContextBeforeSend?.name}");
-debugPrint("CURRENT STATE CONTEXT: ${selectedProductContext?.name}");
-
   try {
+    if (chatIdForRequest.isEmpty) {
+      await createNewChatIfNeeded(query);
+      chatIdForRequest = currentChatId;
+    }
+
+    if (chatIdForRequest == currentChatId) {
+      setState(() {
+        messages.add(
+          ChatMessage(
+            text: query,
+            isUser: true,
+            contextTitle: selectedContextBeforeSend?.name,
+            contextImage: selectedContextBeforeSend?.image,
+          ),
+        );
+        controller.clear();
+      });
+    }
+
+    scrollToBottom();
+
+    debugPrint("QUERY TO SEND: $query");
+    debugPrint("SELECTED CONTEXT BEFORE SEND: ${selectedContextBeforeSend?.name}");
+    debugPrint("CURRENT STATE CONTEXT: ${selectedProductContext?.name}");
+
     final result = await ChatService.sendMessage(
       chatId: chatIdForRequest,
       message: query,
@@ -985,41 +982,39 @@ debugPrint("CURRENT STATE CONTEXT: ${selectedProductContext?.name}");
         ? Map<String, dynamic>.from(result["reviewCard"])
         : null;
 
-        final sellerComparison = result["sellerComparison"] != null
-    ? Map<String, dynamic>.from(result["sellerComparison"])
-    : null;
+    final sellerComparison = result["sellerComparison"] != null
+        ? Map<String, dynamic>.from(result["sellerComparison"])
+        : null;
 
-    // 🔥 SADECE hala aynı chat açıksa ekle
     if (chatIdForRequest == currentChatId) {
       setState(() {
-  messages.add(
-    ChatMessage(
-      text: rawAssistantText,
-      isUser: false,
-      products: products,
-      actions: actions,
-      comparison: comparison,
-      detailCard: detailCard,
-      reviewCard: reviewCard,
-      sellerComparison: sellerComparison,
-    ),
-  );
-});
+        messages.add(
+          ChatMessage(
+            text: rawAssistantText,
+            isUser: false,
+            products: products,
+            actions: actions,
+            comparison: comparison,
+            detailCard: detailCard,
+            reviewCard: reviewCard,
+            sellerComparison: sellerComparison,
+          ),
+        );
+      });
 
       scrollToBottom();
     }
 
     await loadChatHistory();
     if (chatIdForRequest == currentChatId) {
-  await saveChatLastSeen(chatIdForRequest);
-}
+      await saveChatLastSeen(chatIdForRequest);
+    }
   } catch (e) {
     if (chatIdForRequest == currentChatId) {
       setState(() {
         messages.add(
           ChatMessage(
-            text:
-                "Şu an isteğini işlerken bir sorun oldu. Tekrar deneyebilirsin.",
+            text: "Şu an isteğini işlerken bir sorun oldu. Tekrar deneyebilirsin.",
             isUser: false,
           ),
         );
@@ -1027,11 +1022,13 @@ debugPrint("CURRENT STATE CONTEXT: ${selectedProductContext?.name}");
     }
 
     debugPrint(e.toString());
+  } finally {
+    if (mounted) {
+      setState(() {
+        loading = false;
+      });
+    }
   }
-
-  setState(() {
-    loading = false;
-  });
 }
 
 Future<void> sendQuickAction(String action) async {
@@ -1265,8 +1262,7 @@ Widget buildMessageBubble(ChatMessage message) {
 }
 
 Widget buildComparisonBox(Map<String, dynamic> comparison) {
-
-debugPrint("COMPARISON UI DATA: $comparison");
+  debugPrint("COMPARISON UI DATA: $comparison");
 
   final winner = (comparison["winner"] ?? "").toString().trim();
   final summary = (comparison["summary"] ?? "").toString().trim();
@@ -1281,9 +1277,50 @@ debugPrint("COMPARISON UI DATA: $comparison");
       .map((e) => Map<String, dynamic>.from(e))
       .toList();
 
-  if (products.isEmpty && winner.isEmpty && highlights.isEmpty && summary.isEmpty) {
+  if (products.isEmpty &&
+      winner.isEmpty &&
+      highlights.isEmpty &&
+      summary.isEmpty) {
     return const SizedBox.shrink();
   }
+
+  final screenWidth = MediaQuery.of(context).size.width;
+  final bool isTablet = screenWidth >= 700;
+  final bool isLargeTablet = screenWidth >= 1000;
+
+  final double winnerImageHeight = isLargeTablet
+      ? 280
+      : isTablet
+          ? 220
+          : 130;
+
+  final double productImageHeight = screenWidth >= 1300
+    ? 260
+    : screenWidth >= 1100
+        ? 220
+        : screenWidth >= 900
+            ? 200
+            : screenWidth >= 700
+                ? 170
+                : 115;
+
+  final int gridCount = isLargeTablet
+      ? 3
+      : isTablet
+          ? 2
+          : 2;
+
+  final double gridAspectRatio = screenWidth >= 1300
+    ? 0.68
+    : screenWidth >= 1100
+        ? 0.64
+        : screenWidth >= 900
+            ? 0.60
+            : screenWidth >= 700
+                ? 0.62
+                : 0.68;
+
+  final EdgeInsets cardPadding = EdgeInsets.all(isTablet ? 20 : 16);
 
   Widget buildBadge(String text, IconData icon) {
     return Container(
@@ -1313,7 +1350,7 @@ debugPrint("COMPARISON UI DATA: $comparison");
   Widget buildHighlight(String text) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(isTablet ? 12 : 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF7F8FC),
         borderRadius: BorderRadius.circular(14),
@@ -1329,7 +1366,7 @@ debugPrint("COMPARISON UI DATA: $comparison");
               text,
               style: TextStyle(
                 color: Colors.black87,
-                fontSize: 12,
+                fontSize: isTablet ? 13 : 12,
                 fontWeight: FontWeight.w600,
                 height: 1.35,
               ),
@@ -1341,12 +1378,14 @@ debugPrint("COMPARISON UI DATA: $comparison");
   }
 
   Widget buildImage(String imageUrl, bool isWinnerCard) {
+    final imageHeight = isWinnerCard ? winnerImageHeight : productImageHeight;
+
     return Container(
-      height: 110,
+      height: imageHeight,
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFFF4F5FA),
+        color: Colors.white,
       ),
       child: Stack(
         children: [
@@ -1355,16 +1394,16 @@ debugPrint("COMPARISON UI DATA: $comparison");
               borderRadius: BorderRadius.circular(18),
               child: imageUrl.isNotEmpty
                   ? Image.network(
-  proxyImageUrl(imageUrl),
-  fit: BoxFit.cover,
-  errorBuilder: (context, error, stackTrace) {
-    debugPrint("IMAGE FAIL RAW: $imageUrl");
-    return Container(
-      color: Colors.grey.shade200,
-      child: const Icon(Icons.image_not_supported),
-    );
-  },
-)
+                      proxyImageUrl(imageUrl),
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint("IMAGE FAIL RAW: $imageUrl");
+                        return Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image_not_supported),
+                        );
+                      },
+                    )
                   : Center(
                       child: Icon(
                         Icons.shopping_bag_outlined,
@@ -1419,7 +1458,7 @@ debugPrint("COMPARISON UI DATA: $comparison");
     final isWinnerCard = name == winner;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isTablet ? 14 : 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -1440,29 +1479,31 @@ debugPrint("COMPARISON UI DATA: $comparison");
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          buildImage(image, isWinnerCard),
-          const SizedBox(height: 10),
+          buildImage(image, false),
+          SizedBox(height: isTablet ? 12 : 10),
           Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w800,
-              height: 1.3,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
+  name,
+  maxLines: screenWidth >= 900 ? 3 : 2,
+  overflow: TextOverflow.ellipsis,
+  style: TextStyle(
+    fontSize: isTablet ? 15 : 13.5,
+    fontWeight: FontWeight.w800,
+    height: 1.3,
+    color: Colors.black87,
+  ),
+),
+          SizedBox(height: isTablet ? 10 : 8),
           Text(
             price.isNotEmpty ? price : "Fiyat yok",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: primaryColor,
-              fontSize: 15,
+              fontSize: isTablet ? 16 : 15,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: isTablet ? 10 : 8),
           if (platform.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -1475,26 +1516,29 @@ debugPrint("COMPARISON UI DATA: $comparison");
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: isTablet ? 11.5 : 10.5,
                   color: Colors.grey.shade700,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           if (shortReason.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              shortReason,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 11.5,
-                height: 1.35,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
+  SizedBox(height: isTablet ? 12 : 10),
+  Flexible(
+    child: Text(
+      shortReason,
+      maxLines: screenWidth >= 900 ? 4 : 3,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: Colors.grey.shade700,
+        fontSize: isTablet ? 12.5 : 11.5,
+        height: 1.4,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+  ),
+]else
+            const Spacer(),
         ],
       ),
     );
@@ -1510,7 +1554,7 @@ debugPrint("COMPARISON UI DATA: $comparison");
 
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    padding: const EdgeInsets.all(16),
+    padding: cardPadding,
     decoration: BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(26),
@@ -1531,7 +1575,7 @@ debugPrint("COMPARISON UI DATA: $comparison");
           const SizedBox(height: 14),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(isTablet ? 16 : 14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -1556,10 +1600,10 @@ debugPrint("COMPARISON UI DATA: $comparison");
                 const SizedBox(height: 12),
                 Text(
                   (winnerProduct["name"] ?? "").toString().trim(),
-                  maxLines: 2,
+                  maxLines: isTablet ? 3 : 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15,
+                  style: TextStyle(
+                    fontSize: isTablet ? 16.5 : 15,
                     fontWeight: FontWeight.w800,
                     height: 1.3,
                     color: Colors.black87,
@@ -1568,9 +1612,11 @@ debugPrint("COMPARISON UI DATA: $comparison");
                 const SizedBox(height: 8),
                 Text(
                   (winnerProduct["price"] ?? "").toString().trim(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: primaryColor,
-                    fontSize: 16,
+                    fontSize: isTablet ? 17 : 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1578,11 +1624,11 @@ debugPrint("COMPARISON UI DATA: $comparison");
                   const SizedBox(height: 10),
                   Text(
                     summary,
-                    maxLines: 2,
+                    maxLines: isTablet ? 3 : 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: Colors.grey.shade700,
-                      fontSize: 12.5,
+                      fontSize: isTablet ? 13.5 : 12.5,
                       height: 1.4,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1594,17 +1640,19 @@ debugPrint("COMPARISON UI DATA: $comparison");
         ],
         if (highlights.isNotEmpty) ...[
           const SizedBox(height: 14),
-          ...highlights.map((e) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: buildHighlight(e),
-              )),
+          ...highlights.map(
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: buildHighlight(e),
+            ),
+          ),
         ],
         if (products.isNotEmpty) ...[
           const SizedBox(height: 10),
-          const Text(
+          Text(
             "Tüm ürünler",
             style: TextStyle(
-              fontSize: 14,
+              fontSize: isTablet ? 15 : 14,
               fontWeight: FontWeight.w800,
               color: Colors.black87,
             ),
@@ -1614,11 +1662,11 @@ debugPrint("COMPARISON UI DATA: $comparison");
             itemCount: products.length,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 0.66,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: gridCount,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: gridAspectRatio,
             ),
             itemBuilder: (context, index) {
               return buildProductCard(products[index]);
@@ -2826,7 +2874,11 @@ SafeArea(
                 onChanged: (_) {
                   setState(() {});
                 },
-                onSubmitted: (_) => search(),
+                onSubmitted: (_) async {
+  if (!loading) {
+    await search();
+  }
+},
                 decoration: InputDecoration(
                   hintText: isListening
                       ? "Dinleniyor..."
@@ -2869,21 +2921,25 @@ SafeArea(
                       ],
                     ),
                     child: IconButton(
-                      onPressed: loading ? null : search,
-                      icon: loading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(
-                              Icons.arrow_upward_rounded,
-                              color: Colors.white,
-                            ),
-                    ),
+  onPressed: loading
+      ? null
+      : () async {
+          await search();
+        },
+  icon: loading
+      ? const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        )
+      : const Icon(
+          Icons.arrow_upward_rounded,
+          color: Colors.white,
+        ),
+),
                   )
                 : Row(
                     key: const ValueKey('voice_camera_actions'),
