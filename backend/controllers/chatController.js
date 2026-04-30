@@ -32,7 +32,7 @@ function buildCrossChatMemory(currentChat, allChats = []) {
 
   return merged.slice(-60);
 }
-const { searchGoogleShopping } = require('../services/googleShoppingService');
+const { searchProducts } = require('../services/shoppingSearchService');
 
 const {
   generateSearchQueryFromImage,
@@ -237,13 +237,37 @@ try {
 
 const memoryMessages = buildCrossChatMemory(chat, allUserChats);
 
-const aiResult = await generateChatReply({
-  userMessage: userText,
-  previousMessages: memoryMessages,
-  selectedProduct,
-  userProfile,
-  favoriteProducts,
-});
+let aiResult;
+
+try {
+  aiResult = await generateChatReply({
+    userMessage: userText,
+    previousMessages: memoryMessages,
+    selectedProduct,
+    userProfile,
+    favoriteProducts,
+  });
+} catch (error) {
+  console.error("AI ERROR:", error.message);
+  console.error("AI ERROR STATUS:", error.status || error.response?.status || null);
+  console.error("AI ERROR DATA:", error.response?.data || error.error || null);
+
+  const products = await searchProducts(userText);
+
+  aiResult = {
+    assistantText: products.length > 0
+      ? "Senin için uygun ürünleri listeledim."
+      : "Şu an yapay zeka cevabı üretirken sorun oldu ve uygun ürün bulamadım. Biraz daha net yazarak tekrar deneyebilirsin.",
+    products: products.slice(0, 10),
+    actions: products.length > 0
+      ? ["Karşılaştır", "Daha ucuz alternatifler", "Benzer ürünler"]
+      : [],
+    comparison: null,
+    detailCard: null,
+    reviewCard: null,
+    sellerComparison: null,
+  };
+}
 
     const safeProducts = Array.isArray(aiResult.products) ? aiResult.products : [];
     const safeActions = normalizeActions(aiResult.actions);
@@ -284,7 +308,17 @@ const aiResult = await generateChatReply({
     });
   } catch (error) {
     console.error('Send chat message error:', error.message);
-    return res.status(500).json({ error: 'Mesaj işlenemedi' });
+    console.error('ERROR STATUS:', error.response?.status);
+    console.error('ERROR URL:', error.config?.url);
+    console.error('ERROR METHOD:', error.config?.method);
+    console.error('ERROR DATA:', JSON.stringify(error.response?.data, null, 2));
+  
+    return res.status(500).json({
+      error: 'Mesaj işlenemedi',
+      detail: error.message,
+      status: error.response?.status || null,
+      url: error.config?.url || null,
+    });
   }
 };
 
@@ -317,7 +351,7 @@ const searchByImage = async (req, res) => {
       });
     }
 
-    const rawResults = await searchGoogleShopping(searchQuery);
+    const rawResults = await searchProducts(searchQuery, 'image');
 
     const products = (rawResults || []).slice(0, 10).map((item, index) => ({
       index: index + 1,
@@ -461,7 +495,7 @@ const favoriteProducts = favoriteDocs
 
     for (const query of candidateQueries) {
       try {
-        const results = await searchGoogleShopping(query);
+        const results = await searchProducts(query, 'image');
 
         if (Array.isArray(results) && results.length > 0) {
           rawResults = results;

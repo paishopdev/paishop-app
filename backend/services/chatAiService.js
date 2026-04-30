@@ -1,5 +1,5 @@
 const OpenAI = require('openai');
-const { searchGoogleShopping } = require('./googleShoppingService');
+const { searchProducts } = require('./shoppingSearchService');
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -335,11 +335,11 @@ async function searchWithFallback(userMessage, plannerQuery) {
   let results = [];
 
   if (primaryQuery) {
-    results = await searchGoogleShopping(primaryQuery);
+    results = await searchProducts(primaryQuery);
   }
 
   if ((!results || results.length === 0) && fallbackQuery && fallbackQuery !== primaryQuery) {
-    results = await searchGoogleShopping(fallbackQuery);
+    results = await searchProducts(fallbackQuery);
   }
 
   return results || [];
@@ -1406,7 +1406,7 @@ async function generateChatReply({
 })
 
 {
-  if (selectedProduct) {
+  if (selectedProduct && selectedProduct.name) {
     console.log(
       "SELECTED PRODUCT FLOW ACTIVE FOR:",
       selectedProduct ? selectedProduct.name : null
@@ -1933,7 +1933,7 @@ ${userMessage}
     );
 
     if (hasPriceFilter && filteredResults.length < 3) {
-      const broaderResults = await searchGoogleShopping(
+      const broaderResults = await searchProducts(query)(
         sanitizeSearchQuery(userMessage)
       );
 
@@ -2126,7 +2126,7 @@ async function buildSellerComparisonFromSearch({
 
   console.log("SELLER SEARCH FOR:", baseProduct.name);
 
-  const rawResults = await searchGoogleShopping(baseProduct.name);
+  await searchProducts(baseProduct.name, 'seller')
 
   const normalized = normalizeProducts(rawResults);
 
