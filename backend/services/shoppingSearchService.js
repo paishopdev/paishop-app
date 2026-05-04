@@ -66,7 +66,7 @@ async function searchProducts(query, type = 'search') {
         data: results,
         expireAt: new Date(Date.now() + expireMinutes * 60 * 1000),
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     console.log("CACHE SAVED:", cleanQuery, "MIN:", expireMinutes);
