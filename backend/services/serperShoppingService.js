@@ -12,16 +12,19 @@ function extractSerperImage(item = {}) {
     item.image_url,
     item.productImage,
     item.product_image,
-    item.serpapi_thumbnail,
-    ...(Array.isArray(item.images) ? item.images : []),
-    ...(Array.isArray(item.thumbnails) ? item.thumbnails : []),
   ].filter(Boolean);
 
   for (const img of candidates) {
-    if (isValidHttpUrl(img)) return img;
+    if (
+      typeof img === 'string' &&
+      img.startsWith('http') &&      // ✅ SADECE GERÇEK LINK
+      !img.startsWith('data:image')  // ❌ BASE64 ENGEL
+    ) {
+      return img;
+    }
   }
 
-  return '';
+  return ''; // yoksa boş bırak
 }
 
 function parseReviewCount(value) {
