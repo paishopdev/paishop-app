@@ -46,6 +46,31 @@ function parseReviewCount(value) {
   return cleaned ? parseInt(cleaned, 10) : null;
 }
 
+function parseSerperReviewCount(item = {}) {
+  const raw =
+    item.reviews ||
+    item.review_count ||
+    item.reviewsCount ||
+    item.reviewCount;
+
+  if (!raw) return null;
+
+  const text = String(raw).toLowerCase();
+
+  // Emin olmadığımız "ratingCount" gibi alanları yorum sanma
+  // Sadece içinde yorum/review/değerlendirme geçen alanları güvenli say
+  if (
+    !text.includes('yorum') &&
+    !text.includes('review') &&
+    !text.includes('değerlendirme') &&
+    !text.includes('degerlendirme')
+  ) {
+    return null;
+  }
+
+  return parseReviewCount(raw);
+}
+
 async function searchSerperShopping(query) {
   const apiKey = process.env.SERPER_API_KEY;
 
@@ -80,13 +105,7 @@ async function searchSerperShopping(query) {
     image: extractSerperImage(item),
     link: item.link || item.product_link || item.url || '',
     rating: item.rating || null,
-    reviews: parseReviewCount(
-      item.reviewCount ||
-      item.reviews ||
-      item.ratingCount ||
-      item.review_count ||
-      item.reviewsCount
-    ),
+    reviews: parseSerperReviewCount(item),
     short_reason: '',
   }));
 }
