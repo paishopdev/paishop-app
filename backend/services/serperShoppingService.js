@@ -80,9 +80,52 @@ async function searchSerperShopping(query) {
     image: extractSerperImage(item),
     link: item.link || item.product_link || item.url || '',
     rating: item.rating || null,
-    reviews: parseReviewCount(item.reviewCount || item.reviews),
+    reviews: parseReviewCount(
+      item.reviewCount ||
+      item.reviews ||
+      item.ratingCount ||
+      item.review_count ||
+      item.reviewsCount
+    ),
     short_reason: '',
   }));
 }
 
-module.exports = { searchSerperShopping };
+async function searchSerperImages(query) {
+  const apiKey = process.env.SERPER_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('SERPER_API_KEY missing');
+  }
+
+  const response = await axios.post(
+    'https://google.serper.dev/images',
+    { q: query, gl: 'tr', hl: 'tr' },
+    {
+      headers: {
+        'X-API-KEY': apiKey,
+        'Content-Type': 'application/json',
+      },
+      timeout: 20000,
+    }
+  );
+
+  const results = response.data.images || [];
+
+  for (const item of results) {
+    const img =
+      item.imageUrl ||
+      item.thumbnailUrl ||
+      item.image ||
+      item.thumbnail ||
+      '';
+
+    if (typeof img === 'string' && img.startsWith('http')) {
+      return img;
+    }
+  }
+
+  return '';
+}
+
+module.exports = { searchSerperShopping, searchSerperImages };

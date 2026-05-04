@@ -60,6 +60,53 @@ function normalizeText(text = '') {
     .replace(/ç/g, 'c');
 }
 
+function hasUsableImage(product = {}) {
+  const image = String(product.image || '').trim();
+  return image.startsWith('http');
+}
+
+function isUnavailableProduct(product = {}) {
+  const text = normalizeText(
+    `${product.name || ''} ${product.platform || ''} ${product.short_reason || ''}`
+  );
+
+  const badWords = [
+    'stokta yok',
+    'tukendi',
+    'tukenmis',
+    'satis yok',
+    'satis disi',
+    'satisdan kalkti',
+    'satistan kalkti',
+    'mevcut degil',
+    'urun bulunamadi',
+    'ikinci el',
+    'yenilenmis',
+    'refurbished',
+  ];
+
+  return badWords.some((w) => text.includes(w));
+}
+
+function applyProductQualityFilter(products = []) {
+  const valid = (products || []).filter((product) => {
+    if (!product || !product.name) return false;
+    if (!product.link) return false;
+    if (parsePriceValue(product.price) === Number.MAX_SAFE_INTEGER) return false;
+    if (isUnavailableProduct(product)) return false;
+    return true;
+  });
+
+  const withImage = valid.filter(hasUsableImage);
+
+  // Yeterince görselli ürün varsa görselsizleri ele.
+  if (withImage.length >= 4) {
+    return withImage;
+  }
+
+  return valid;
+}
+
 function extractQueryKeywords(userMessage, plannerQuery = '') {
   const raw = `${plannerQuery} ${sanitizeSearchQuery(userMessage)}`
     .toLowerCase()
@@ -82,7 +129,9 @@ function scoreAndRankProducts(products, userMessage, plannerQuery = '') {
   const features = extractFeatureKeywords(userMessage);
   const { hasPriceFilter, min, max } = detectPriceIntent(userMessage);
 
-  const scored = (products || []).map((product) => {
+  const qualityFiltered = applyProductQualityFilter(products || []);
+
+  const scored = qualityFiltered.map((product) => {
     const name = normalizeText(product.name || '');
     const platform = normalizeText(product.platform || '');
     const reason = normalizeText(product.short_reason || '');
@@ -92,8 +141,8 @@ function scoreAndRankProducts(products, userMessage, plannerQuery = '') {
 
     for (const keyword of keywords) {
       const k = normalizeText(keyword);
-      if (name.includes(k)) score += 4;
-      else if (combined.includes(k)) score += 2;
+      if (name.includes(k)) score += 6;
+      else if (combined.includes(k)) score += 3;
     }
 
     for (const feature of features) {
@@ -104,33 +153,56 @@ function scoreAndRankProducts(products, userMessage, plannerQuery = '') {
     const priceValue = parsePriceValue(product.price);
 
     if (priceValue !== Number.MAX_SAFE_INTEGER) {
-      score += 1;
+      score += 4;
 
       if (hasPriceFilter) {
         if (min != null && max != null && priceValue >= min && priceValue <= max) {
-          score += 5;
+          score += 8;
         } else if (max != null && priceValue <= max) {
-          score += 4;
+          score += 7;
         } else if (min != null && priceValue >= min) {
-          score += 4;
+          score += 7;
         } else {
-          score -= 8;
+          score -= 12;
         }
 
         if (min != null && max != null) {
           const center = (min + max) / 2;
           const distance = Math.abs(priceValue - center);
-          if (distance <= 250) score += 2;
-          else if (distance <= 500) score += 1;
+          if (distance <= 250) score += 3;
+          else if (distance <= 500) score += 2;
+          else if (distance <= 1000) score += 1;
         }
       }
     } else {
-      score -= 5;
+      score -= 20;
     }
 
-    if (!product.link) score -= 2;
-    if (!product.image) score -= 1;
-    if (!product.name) score -= 10;
+    if (hasUsableImage(product)) score += 10;
+    else score -= 6;
+
+    if (product.link) score += 5;
+    else score -= 12;
+
+    const rating = Number(product.rating);
+    if (!isNaN(rating) && rating > 0) {
+      score += rating * 4;
+    } else {
+      score -= 2;
+    }
+
+    const reviews = Number(product.reviews);
+    if (!isNaN(reviews) && reviews > 0) {
+      if (reviews >= 1000) score += 12;
+      else if (reviews >= 500) score += 9;
+      else if (reviews >= 100) score += 6;
+      else if (reviews >= 20) score += 3;
+      else score += 1;
+    } else {
+      score -= 4;
+    }
+
+    if (isUnavailableProduct(product)) score -= 100;
 
     return { ...product, _score: score };
   });
@@ -143,8 +215,11 @@ function scoreAndRankProducts(products, userMessage, plannerQuery = '') {
 function removeWeakProducts(products, userMessage, plannerQuery = '') {
   const keywords = extractQueryKeywords(userMessage, plannerQuery);
 
-  return (products || []).filter((product) => {
+  const filtered = (products || []).filter((product) => {
     if (!product || !product.name) return false;
+    if (!product.link) return false;
+    if (parsePriceValue(product.price) === Number.MAX_SAFE_INTEGER) return false;
+    if (isUnavailableProduct(product)) return false;
 
     const text = normalizeText(
       `${product.name} ${product.platform || ''} ${product.short_reason || ''}`
@@ -154,13 +229,18 @@ function removeWeakProducts(products, userMessage, plannerQuery = '') {
       text.includes(normalizeText(k))
     ).length;
 
-    const priceValue = parsePriceValue(product.price);
-
-    if (priceValue === Number.MAX_SAFE_INTEGER) return false;
     if (keywordMatchCount === 0 && keywords.length > 0) return false;
 
     return true;
   });
+
+  const withImage = filtered.filter(hasUsableImage);
+
+  if (withImage.length >= 4) {
+    return withImage;
+  }
+
+  return filtered;
 }
 
 function extractFeatureKeywords(userMessage) {
@@ -2126,7 +2206,7 @@ async function buildSellerComparisonFromSearch({
 
   console.log("SELLER SEARCH FOR:", baseProduct.name);
 
-  await searchProducts(baseProduct.name, 'seller')
+  const rawResults = await searchProducts(baseProduct.name, 'seller');
 
   const normalized = normalizeProducts(rawResults);
 

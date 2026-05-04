@@ -1,5 +1,5 @@
 const SearchCache = require('../models/SearchCache');
-const { searchSerperShopping } = require('./serperShoppingService');
+const { searchSerperShopping, searchSerperImages } = require('./serperShoppingService');
 const { searchGoogleShopping } = require('./googleShoppingService');
 
 function getCacheMinutes(type) {
@@ -14,6 +14,83 @@ function logProviderError(provider, err) {
   console.log(`${provider} STATUS:`, err.response?.status || err.status || null);
   console.log(`${provider} URL:`, err.config?.url || null);
   console.log(`${provider} DATA:`, JSON.stringify(err.response?.data || null, null, 2));
+}
+
+function hasHttpImage(product = {}) {
+  const image = String(product.image || '').trim();
+  return image.startsWith('http');
+}
+
+async function getFallbackImage(product = {}) {
+  const name = String(product.name || '').trim();
+  const platform = String(product.platform || '').trim();
+
+  if (!name) return '';
+
+  const imageQuery = `${name} ${platform}`.trim().toLowerCase();
+
+  const cached = await SearchCache.findOne({
+    query: imageQuery,
+    type: 'image_lookup',
+  });
+
+  if (cached && cached.data?.[0]?.image) {
+    return cached.data[0].image;
+  }
+
+  try {
+    console.log('TRY IMAGE FALLBACK:', imageQuery);
+
+    const image = await searchSerperImages(imageQuery);
+
+    if (image) {
+      await SearchCache.findOneAndUpdate(
+        { query: imageQuery, type: 'image_lookup' },
+        {
+          query: imageQuery,
+          type: 'image_lookup',
+          data: [{ image }],
+          expireAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+        { upsert: true, returnDocument: 'after' }
+      );
+    }
+
+    return image;
+  } catch (err) {
+    logProviderError('SERPER IMAGE', err);
+    return '';
+  }
+}
+
+async function enrichMissingImages(products = []) {
+  const output = [];
+  let fallbackCount = 0;
+
+  for (const product of products) {
+    if (hasHttpImage(product)) {
+      output.push(product);
+      continue;
+    }
+
+    // Maliyet artmasın diye ilk 8 görselsiz üründe deniyoruz
+    if (fallbackCount < 8) {
+      fallbackCount++;
+
+      const fallbackImage = await getFallbackImage(product);
+
+      output.push({
+        ...product,
+        image: fallbackImage || '',
+      });
+
+      continue;
+    }
+
+    output.push(product);
+  }
+
+  return output;
 }
 
 async function searchProducts(query, type = 'search') {
@@ -53,6 +130,10 @@ async function searchProducts(query, type = 'search') {
     } catch (err) {
       logProviderError("SERPAPI", err);
     }
+  }
+
+  if (results && results.length > 0) {
+    results = await enrichMissingImages(results);
   }
 
   if (results && results.length > 0) {
