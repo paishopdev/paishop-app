@@ -105,7 +105,7 @@ async function searchSerperShopping(query) {
     image: extractSerperImage(item),
     link: item.link || item.product_link || item.url || '',
     rating: item.rating || null,
-    reviews: parseSerperReviewCount(item),
+    reviews: null,
     short_reason: '',
   }));
 }
