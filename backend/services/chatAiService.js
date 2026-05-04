@@ -2255,19 +2255,63 @@ function resolveSellerBaseProduct({
   selectedProduct,
   previousMessages,
 }) {
+  const normalize = (text) =>
+    String(text || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9ğüşöçı\s]/gi, '')
+      .trim();
+
+  const userText = normalize(userMessage);
+
+  // 1️⃣ selected product varsa direkt al
   if (selectedProduct && selectedProduct.name) {
     return selectedProduct;
   }
 
-  const latestBatch = extractLastProductBatch(previousMessages);
+  // 2️⃣ son ürün listesini al
+  const lastBatch = extractLastProductBatch(previousMessages);
 
-  const referenced = resolveProductReference(userMessage, latestBatch);
+  if (!lastBatch || lastBatch.length === 0) {
+    return null;
+  }
 
-  if (referenced) return referenced;
+  // 3️⃣ akıllı eşleşme (EN KRİTİK)
+  let bestMatch = null;
+  let bestScore = 0;
 
-  if (latestBatch.length === 1) return latestBatch[0];
+  for (const product of lastBatch) {
+    const name = normalize(product.name);
 
-  return null;
+    let score = 0;
+
+    const words = userText.split(' ');
+
+    for (const w of words) {
+      if (w.length < 3) continue;
+      if (name.includes(w)) score += 2;
+    }
+
+    // özel boostlar
+    if (userText.includes('playstation') && name.includes('playstation')) {
+      score += 5;
+    }
+
+    if (userText.includes('iphone') && name.includes('iphone')) {
+      score += 5;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = product;
+    }
+  }
+
+  if (bestMatch) return bestMatch;
+
+  // 4️⃣ fallback
+  if (lastBatch.length === 1) return lastBatch[0];
+
+  return lastBatch[0] || null;
 }
 
 async function generateChatTitle(firstMessage) {
