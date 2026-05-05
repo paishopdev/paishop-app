@@ -206,6 +206,7 @@ Future<void> startListening() async {
   final available = await speech.initialize(
     onStatus: (status) {
       if (status == 'done' || status == 'notListening') {
+        if (!mounted) return;
         setState(() {
           isListening = false;
         });
@@ -213,6 +214,7 @@ Future<void> startListening() async {
     },
     onError: (error) {
       debugPrint("Speech error: $error");
+      if (!mounted) return;
       setState(() {
         isListening = false;
       });
@@ -221,13 +223,26 @@ Future<void> startListening() async {
 
   if (!available) return;
 
+  final locales = await speech.locales();
+
+  final turkishLocale = locales.firstWhere(
+    (locale) =>
+        locale.localeId.toLowerCase() == 'tr_tr' ||
+        locale.localeId.toLowerCase().startsWith('tr'),
+    orElse: () => locales.first,
+  );
+
+  debugPrint("SPEECH SELECTED LOCALE: ${turkishLocale.localeId}");
+
+  if (!mounted) return;
   setState(() {
     isListening = true;
   });
 
-  speech.listen(
-    localeId: 'tr_TR',
-    onResult: (result) {
+  await speech.listen(
+  localeId: turkishLocale.localeId,
+  onResult: (result) {
+      if (!mounted) return;
       setState(() {
         controller.text = result.recognizedWords;
         controller.selection = TextSelection.fromPosition(
@@ -1090,12 +1105,12 @@ Future<void> sendQuickAction(String action) async {
 Widget buildMessageBubble(ChatMessage message) {
   final isUser = message.isUser;
   final hasText = message.text.trim().isNotEmpty;
-  final hasLocalImages =
-    message.galleryImages != null && message.galleryImages!.isNotEmpty;
 
-final hasSavedImages = message.imageAttachments.isNotEmpty;
+  final localImages = message.galleryImages ?? [];
+  final savedImages = message.imageAttachments;
 
-final hasImages = hasLocalImages || hasSavedImages;
+  final hasLocalImages = localImages.isNotEmpty;
+  final hasSavedImages = savedImages.isNotEmpty;
 
   return Align(
     alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -1158,14 +1173,13 @@ final hasImages = hasLocalImages || hasSavedImages;
               ),
             ),
 
-          if (isUser && hasImages) ...[
+          if (isUser && hasLocalImages) ...[
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,
               runSpacing: 8,
-              children: message.galleryImages!.map((image) {
-                final double size =
-                    message.galleryImages!.length == 1 ? 128 : 82;
+              children: localImages.map((image) {
+                final double size = localImages.length == 1 ? 128 : 82;
 
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(14),
@@ -1195,41 +1209,42 @@ final hasImages = hasLocalImages || hasSavedImages;
                 );
               }).toList(),
             ),
+            if (hasText || hasSavedImages) const SizedBox(height: 10),
+          ],
+
+          if (isUser && hasSavedImages) ...[
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
+              children: savedImages.map((img) {
+                final double size = savedImages.length == 1 ? 128 : 82;
+
+                try {
+                  final base64Part = img.contains(',') ? img.split(',').last : img;
+                  final bytes = base64Decode(base64Part);
+
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.memory(
+                      bytes,
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                    ),
+                  );
+                } catch (_) {
+                  return Container(
+                    width: size,
+                    height: size,
+                    color: Colors.white.withOpacity(0.18),
+                    child: const Icon(Icons.image_outlined, color: Colors.white),
+                  );
+                }
+              }).toList(),
+            ),
             if (hasText) const SizedBox(height: 10),
           ],
-          if (isUser && hasSavedImages) ...[
-  Wrap(
-    alignment: WrapAlignment.end,
-    spacing: 8,
-    runSpacing: 8,
-    children: message.imageAttachments.map((img) {
-      final double size = message.imageAttachments.length == 1 ? 128 : 82;
-
-      try {
-        final base64Part = img.contains(',') ? img.split(',').last : img;
-        final bytes = base64Decode(base64Part);
-
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Image.memory(
-            bytes,
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-          ),
-        );
-      } catch (_) {
-        return Container(
-          width: size,
-          height: size,
-          color: Colors.white.withOpacity(0.18),
-          child: const Icon(Icons.image_outlined, color: Colors.white),
-        );
-      }
-    }).toList(),
-  ),
-  if (hasText) const SizedBox(height: 10),
-],
 
           if (hasText)
             Text(
@@ -1470,13 +1485,15 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
               : Colors.grey.shade200,
           width: isWinnerCard ? 1.4 : 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
+       boxShadow: isWinnerCard
+    ? [
+        BoxShadow(
+          color: primaryColor.withOpacity(0.25),
+          blurRadius: 18,
+          spreadRadius: 1,
+        )
+      ]
+    : [],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1660,20 +1677,38 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
             ),
           ),
           const SizedBox(height: 12),
-          GridView.builder(
-            itemCount: products.length,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: gridCount,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: gridAspectRatio,
-            ),
-            itemBuilder: (context, index) {
-              return buildProductCard(products[index]);
-            },
-          ),
+          LayoutBuilder(
+  builder: (context, constraints) {
+    final width = constraints.maxWidth;
+
+    int dynamicCount = 2;
+
+    if (width > 900) {
+      dynamicCount = 4;
+    } else if (width > 600) {
+      dynamicCount = 3;
+    }
+
+    return GridView.builder(
+      itemCount: products.length,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: dynamicCount,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.72,
+      ),
+      itemBuilder: (context, index) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          child: buildProductCard(products[index]),
+        );
+      },
+    );
+  },
+),
         ],
       ],
     ),
