@@ -2206,7 +2206,14 @@ async function buildSellerComparisonFromSearch({
 
   console.log("SELLER SEARCH FOR:", baseProduct.name);
 
-  const rawResults = await searchProducts(baseProduct.name, 'seller');
+  const cleanName = baseProduct.name
+  .toLowerCase()
+  .replace(/[^a-z0-9ğüşöçı\s]/gi, '')
+  .split(' ')
+  .slice(0, 3) // sadece ilk 3 kelime
+  .join(' ');
+
+const rawResults = await searchProducts(cleanName, 'seller');
 
   const normalized = normalizeProducts(rawResults);
 

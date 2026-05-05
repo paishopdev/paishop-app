@@ -73,6 +73,12 @@ const messageSchema = new mongoose.Schema(
       },
       default: null,
     },
+
+    sellerComparison: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    
     contextProduct: {
       type: {
         name: String,
