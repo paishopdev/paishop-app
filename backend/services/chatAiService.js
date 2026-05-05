@@ -2199,25 +2199,56 @@ const finalActions =
   };
 }
 
+function buildSellerSearchQuery(productName = '') {
+  const text = normalizeText(productName)
+    .replace(/[^a-z0-9\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!text) return '';
+
+  if (text.includes('playstation') || text.includes('ps5')) {
+    if (text.includes('slim')) return 'playstation 5 slim';
+    return 'playstation 5';
+  }
+
+  if (text.includes('adidas') && text.includes('samba')) {
+    return 'adidas samba';
+  }
+
+  if (text.includes('iphone')) {
+    const match = text.match(/iphone\s?\d+\s?(pro|max|plus|mini)?/);
+    if (match) return match[0].trim();
+  }
+
+  const removeWords = [
+    'erkek', 'kadin', 'bayan', 'unisex', 'spor', 'ayakkabi',
+    'urun', 'model', 'orijinal', 'originals', 'sportswear',
+    'oyun', 'konsolu', 'konsol', 'ithalatci', 'garantili',
+  ];
+
+  const words = text
+    .split(' ')
+    .filter((w) => w.length > 1 && !removeWords.includes(w));
+
+  return words.slice(0, 4).join(' ');
+}
+
 async function buildSellerComparisonFromSearch({
   baseProduct,
 }) {
   if (!baseProduct || !baseProduct.name) return null;
 
+  const sellerQuery = buildSellerSearchQuery(baseProduct.name);
+
   console.log("SELLER SEARCH FOR:", baseProduct.name);
+  console.log("SELLER CLEAN QUERY:", sellerQuery);
 
-  const cleanName = baseProduct.name
-  .toLowerCase()
-  .replace(/[^a-z0-9ğüşöçı\s]/gi, '')
-  .split(' ')
-  .slice(0, 3) // sadece ilk 3 kelime
-  .join(' ');
-
-const rawResults = await searchProducts(cleanName, 'seller');
+  const rawResults = await searchProducts(sellerQuery || baseProduct.name, 'seller');
 
   const normalized = normalizeProducts(rawResults);
 
-  const targetKey = normalizeSellerKey(baseProduct.name);
+  const targetKey = normalizeSellerKey(sellerQuery || baseProduct.name);
 
   const sameProducts = normalized.filter((item) => {
     const itemKey = normalizeSellerKey(item.name);
@@ -2225,16 +2256,13 @@ const rawResults = await searchProducts(cleanName, 'seller');
     if (!itemKey) return false;
 
     if (itemKey === targetKey) return true;
-
     if (itemKey.includes(targetKey)) return true;
-
     if (targetKey.includes(itemKey)) return true;
 
     const words = targetKey.split(' ').filter(Boolean);
-
     const matchCount = words.filter((w) => itemKey.includes(w)).length;
 
-    return matchCount >= Math.max(2, Math.ceil(words.length * 0.6));
+    return matchCount >= Math.max(1, Math.ceil(words.length * 0.5));
   });
 
   const finalList = sameProducts.length > 0 ? sameProducts : normalized;
