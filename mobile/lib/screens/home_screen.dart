@@ -827,6 +827,7 @@ bool isChatUnread(ChatItem chat) {
   );
 }).toList();
 
+
 setState(() {
   messages = loadedMessages;
 });
@@ -1088,6 +1089,7 @@ Future<void> sendQuickAction(String action) async {
 
 Widget buildMessageBubble(ChatMessage message) {
   final isUser = message.isUser;
+  final hasText = message.text.trim().isNotEmpty;
   final hasLocalImages =
     message.galleryImages != null && message.galleryImages!.isNotEmpty;
 

@@ -367,20 +367,16 @@ const searchByImage = async (req, res) => {
 
     const assistantText = `"${searchQuery}" için görsele benzer ürünleri buldum.`;
 
-    const imageAttachments = imagePayloads.map((img) => {
-      return `data:${img.mimeType};base64,${img.base64}`;
-    });
-
     chat.messages.push({
       role: 'user',
-      text: userText,
+      text: 'Görsel ile ürün arandı',
       products: [],
       actions: [],
       comparison: null,
       detailCard: null,
       reviewCard: null,
       sellerComparison: null,
-      imageAttachments,
+      imageAttachments: [`data:${mimeType};base64,${base64Image}`],
       contextProduct: null,
     });
 
@@ -531,16 +527,22 @@ const favoriteProducts = favoriteDocs
         ? `"${usedQuery}" için görsellerine yakın ürünleri buldum.`
         : 'Görselleri analiz ettim ama net eşleşme bulamadım. İstersen farklı açıdan veya daha net görsellerle tekrar deneyelim.';
 
-    chat.messages.push({
-      role: 'user',
-      text: userText,
-      products: [],
-      actions: [],
-      comparison: null,
-      detailCard: null,
-      reviewCard: null,
-      contextProduct: null,
-    });
+        const imageAttachments = imagePayloads.map((img) => {
+          return `data:${img.mimeType};base64,${img.base64}`;
+        });
+
+        chat.messages.push({
+          role: 'user',
+          text: userText,
+          products: [],
+          actions: [],
+          comparison: null,
+          detailCard: null,
+          reviewCard: null,
+          sellerComparison: null,
+          imageAttachments,
+          contextProduct: null,
+        });
 
     chat.messages.push({
       role: 'assistant',

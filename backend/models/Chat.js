@@ -78,7 +78,12 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
-    
+
+    imageAttachments: {
+      type: [String],
+      default: [],
+    },
+
     contextProduct: {
       type: {
         name: String,
