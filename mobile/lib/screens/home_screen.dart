@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:convert';
 
 
 class ChatMessage {
@@ -32,7 +33,12 @@ class ChatMessage {
   final Map<String, dynamic>? sellerComparison;
   final String? contextTitle;
   final String? contextImage;
+
+  // Yeni seçilen / kameradan gelen geçici görseller
   final List<XFile>? galleryImages;
+
+  // Backend’den gelen kalıcı base64 görseller
+  final List<String> imageAttachments;
 
   ChatMessage({
     required this.text,
@@ -42,10 +48,11 @@ class ChatMessage {
     this.comparison,
     this.detailCard,
     this.reviewCard,
+    this.sellerComparison,
     this.contextTitle,
     this.contextImage,
     this.galleryImages,
-    this.sellerComparison,
+    this.imageAttachments = const [],
   });
 }
 
@@ -241,81 +248,22 @@ Future<void> pickImageAndSearch() async {
     if (image == null) return;
     if (!mounted) return;
 
-    String chatIdForRequest = currentChatId;
-
-    if (chatIdForRequest.isEmpty) {
-      await createNewChatIfNeeded("Görselle ürün arama");
-      chatIdForRequest = currentChatId;
-    }
-
-    if (chatIdForRequest.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        messages.add(
-          ChatMessage(
-            text: "Sohbet oluşturulamadı. Tekrar deneyelim.",
-            isUser: false,
-          ),
-        );
-      });
-      return;
-    }
-
-    if (!mounted) return;
     setState(() {
-      loading = true;
+      selectedGalleryImages = [image];
     });
 
-    final result = await ChatService.sendImageMessage(
-      chatId: chatIdForRequest,
-      imageFile: image,
-    );
-
-    final assistantText =
-        (result["assistantText"] ?? "").toString().trim();
-
-    final productsJson =
-        result["products"] is List ? result["products"] as List : [];
-
-    final products = productsJson
-        .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
-        .toList();
-
-    final actions = result["actions"] is List
-        ? List<String>.from(result["actions"])
-        : <String>[];
-
-    if (!mounted) return;
-    setState(() {
-      messages.add(
-        ChatMessage(
-          text: assistantText,
-          isUser: false,
-          products: products,
-          actions: actions,
-        ),
-      );
-    });
-
-    scrollToBottom();
-    await loadChatHistory();
-    await saveChatLastSeen(chatIdForRequest);
+    inputFocusNode.requestFocus();
   } catch (e) {
-    debugPrint("IMAGE SEARCH ERROR: $e");
+    debugPrint("CAMERA PICK ERROR: $e");
 
     if (!mounted) return;
     setState(() {
       messages.add(
         ChatMessage(
-          text: "Görsel işlenirken bir sorun oldu. Tekrar deneyelim.",
+          text: "Kamera ile görsel alınırken bir sorun oldu. Tekrar deneyebilirsin.",
           isUser: false,
         ),
       );
-    });
-  } finally {
-    if (!mounted) return;
-    setState(() {
-      loading = false;
     });
   }
 }
@@ -417,7 +365,7 @@ Future<void> sendGalleryImagesWithPrompt() async {
       selectedGalleryImages = [];
     });
 
-    scrollToBottom();
+    scrollToAssistantStart();
 
     final result = await ChatService.sendImageContextMessage(
       chatId: chatIdForRequest,
@@ -451,7 +399,7 @@ Future<void> sendGalleryImagesWithPrompt() async {
       );
     });
 
-    scrollToBottom();
+    scrollToAssistantStart();
     await loadChatHistory();
     await saveChatLastSeen(chatIdForRequest);
   } catch (e) {
@@ -873,6 +821,9 @@ bool isChatUnread(ChatItem chat) {
     sellerComparison: sellerComparison,
     contextTitle: m["contextProduct"]?["name"],
     contextImage: m["contextProduct"]?["image"],
+    imageAttachments: m["imageAttachments"] != null
+    ? List<String>.from(m["imageAttachments"])
+    : const [],
   );
 }).toList();
 
@@ -1002,7 +953,7 @@ Future<void> search() async {
         );
       });
 
-      scrollToBottom();
+      scrollToAssistantStart();
     }
 
     await loadChatHistory();
@@ -1062,6 +1013,16 @@ Future<void> sendQuickAction(String action) async {
       );
     });
   }
+
+  void scrollToAssistantStart() {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!scrollController.hasClients) return;
+
+    final max = scrollController.position.maxScrollExtent;
+
+    scrollController.jumpTo(max > 300 ? max - 300 : 0);
+  });
+}
 
   Widget buildQuickSuggestions() {
   if (messages.length != 1) return const SizedBox.shrink();
@@ -1127,6 +1088,12 @@ Future<void> sendQuickAction(String action) async {
 
 Widget buildMessageBubble(ChatMessage message) {
   final isUser = message.isUser;
+  final hasLocalImages =
+    message.galleryImages != null && message.galleryImages!.isNotEmpty;
+
+final hasSavedImages = message.imageAttachments.isNotEmpty;
+
+final hasImages = hasLocalImages || hasSavedImages;
 
   return Align(
     alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -1154,7 +1121,8 @@ Widget buildMessageBubble(ChatMessage message) {
         border: isUser ? null : Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (!isUser)
             Padding(
@@ -1188,16 +1156,14 @@ Widget buildMessageBubble(ChatMessage message) {
               ),
             ),
 
-          if (isUser &&
-              message.galleryImages != null &&
-              message.galleryImages!.isNotEmpty) ...[
+          if (isUser && hasImages) ...[
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,
               runSpacing: 8,
               children: message.galleryImages!.map((image) {
                 final double size =
-                    message.galleryImages!.length == 1 ? 110 : 82;
+                    message.galleryImages!.length == 1 ? 128 : 82;
 
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(14),
@@ -1208,10 +1174,10 @@ Widget buildMessageBubble(ChatMessage message) {
                         return Container(
                           width: size,
                           height: size,
-                          color: Colors.white24,
-                          child: Icon(
+                          color: Colors.white.withOpacity(0.18),
+                          child: const Icon(
                             Icons.image_outlined,
-                            color: isUser ? Colors.white : Colors.black54,
+                            color: Colors.white,
                           ),
                         );
                       }
@@ -1227,12 +1193,46 @@ Widget buildMessageBubble(ChatMessage message) {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 10),
+            if (hasText) const SizedBox(height: 10),
           ],
+          if (isUser && hasSavedImages) ...[
+  Wrap(
+    alignment: WrapAlignment.end,
+    spacing: 8,
+    runSpacing: 8,
+    children: message.imageAttachments.map((img) {
+      final double size = message.imageAttachments.length == 1 ? 128 : 82;
 
-          if (message.text.trim().isNotEmpty)
+      try {
+        final base64Part = img.contains(',') ? img.split(',').last : img;
+        final bytes = base64Decode(base64Part);
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        );
+      } catch (_) {
+        return Container(
+          width: size,
+          height: size,
+          color: Colors.white.withOpacity(0.18),
+          child: const Icon(Icons.image_outlined, color: Colors.white),
+        );
+      }
+    }).toList(),
+  ),
+  if (hasText) const SizedBox(height: 10),
+],
+
+          if (hasText)
             Text(
               message.text,
+              textAlign: isUser ? TextAlign.right : TextAlign.left,
               style: TextStyle(
                 color: isUser ? Colors.white : Colors.black87,
                 fontSize: 15,

@@ -367,14 +367,20 @@ const searchByImage = async (req, res) => {
 
     const assistantText = `"${searchQuery}" için görsele benzer ürünleri buldum.`;
 
+    const imageAttachments = imagePayloads.map((img) => {
+      return `data:${img.mimeType};base64,${img.base64}`;
+    });
+
     chat.messages.push({
       role: 'user',
-      text: 'Görsel ile ürün arandı',
+      text: userText,
       products: [],
       actions: [],
       comparison: null,
       detailCard: null,
       reviewCard: null,
+      sellerComparison: null,
+      imageAttachments,
       contextProduct: null,
     });
 
