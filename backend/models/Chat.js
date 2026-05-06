@@ -39,6 +39,8 @@ const messageSchema = new mongoose.Schema(
             platform: String,
             image: String,
             link: String,
+            rating: Number,
+            reviews: Number,
             short_reason: String,
           },
         ],

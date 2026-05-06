@@ -1306,10 +1306,10 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
   final bool isLargeTablet = screenWidth >= 1000;
 
   final double winnerImageHeight = isLargeTablet
-      ? 280
-      : isTablet
-          ? 220
-          : 130;
+    ? 320
+    : isTablet
+        ? 280
+        : 240;
 
   final double productImageHeight = screenWidth >= 1300
     ? 260
@@ -1369,7 +1369,7 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
       width: double.infinity,
       padding: EdgeInsets.all(isTablet ? 12 : 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FC),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade200),
       ),
@@ -1411,8 +1411,8 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
               borderRadius: BorderRadius.circular(18),
               child: imageUrl.isNotEmpty
                   ? Image.network(
-                      proxyImageUrl(imageUrl),
-                      fit: BoxFit.cover,
+  proxyImageUrl(imageUrl),
+ fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
                         debugPrint("IMAGE FAIL RAW: $imageUrl");
                         return Container(
@@ -1485,15 +1485,14 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
               : Colors.grey.shade200,
           width: isWinnerCard ? 1.4 : 1,
         ),
-       boxShadow: isWinnerCard
-    ? [
-        BoxShadow(
-          color: primaryColor.withOpacity(0.25),
-          blurRadius: 18,
-          spreadRadius: 1,
-        )
-      ]
-    : [],
+        
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.035),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1666,53 +1665,235 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
             ),
           ),
         ],
-        if (products.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Text(
-            "Tüm ürünler",
-            style: TextStyle(
-              fontSize: isTablet ? 15 : 14,
-              fontWeight: FontWeight.w800,
-              color: Colors.black87,
-            ),
+        if (products.length >= 2) ...[
+  const SizedBox(height: 16),
+
+  ...List.generate((products.length / 2).ceil(), (pairIndex) {
+    final firstIndex = pairIndex * 2;
+    final secondIndex = firstIndex + 1;
+
+    final first = products[firstIndex];
+    final second = secondIndex < products.length ? products[secondIndex] : null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: buildCompareColumn(first)),
+              if (second != null) ...[
+                const SizedBox(width: 8),
+                Expanded(child: buildCompareColumn(second)),
+              ] else ...[
+                const SizedBox(width: 8),
+                const Expanded(child: SizedBox()),
+              ],
+            ],
           ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-  builder: (context, constraints) {
-    final width = constraints.maxWidth;
-
-    int dynamicCount = 2;
-
-    if (width > 900) {
-      dynamicCount = 4;
-    } else if (width > 600) {
-      dynamicCount = 3;
-    }
-
-    return GridView.builder(
-      itemCount: products.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: dynamicCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.72,
-      ),
-      itemBuilder: (context, index) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-          child: buildProductCard(products[index]),
-        );
-      },
-    );
-  },
-),
+          if (second != null) ...[
+            const SizedBox(height: 14),
+            ...buildComparisonDetails(first, second),
+          ],
         ],
+      ),
+    );
+  }),
+],
       ],
     ),
   );
+}
+Widget buildCompareColumn(Map<String, dynamic> item) {
+  final name = (item["name"] ?? "").toString();
+  final price = (item["price"] ?? "").toString();
+  final image = (item["image"] ?? "").toString();
+  final platform = (item["platform"] ?? "").toString();
+
+  return SizedBox(
+    height: 340,
+    child: Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: image.isNotEmpty
+                  ? Image.network(
+                      proxyImageUrl(image),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.image_not_supported);
+                      },
+                    )
+                  : Icon(
+                      Icons.shopping_bag_outlined,
+                      color: Colors.grey.shade500,
+                    ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 44,
+            child: Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                height: 1.22,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            price.isNotEmpty ? price : "Fiyat yok",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: primaryColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (platform.isNotEmpty)
+            Text(
+              platform,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+List<Widget> buildComparisonDetails(
+  Map<String, dynamic> p1,
+  Map<String, dynamic> p2,
+) {
+  List<Map<String, dynamic>> rows = [
+    {
+      "title": "Fiyat",
+      "v1": p1["price"],
+      "v2": p2["price"],
+      "better": comparePrice(p1["price"], p2["price"]),
+    },
+    {
+      "title": "Mağaza",
+      "v1": p1["platform"],
+      "v2": p2["platform"],
+      "better": 0,
+    },
+    {
+      "title": "Yorum",
+      "v1": p1["reviews"],
+      "v2": p2["reviews"],
+      "better": compareNumber(p1["reviews"], p2["reviews"]),
+    },
+    {
+      "title": "Puan",
+      "v1": p1["rating"],
+      "v2": p2["rating"],
+      "better": compareNumber(p1["rating"], p2["rating"]),
+    },
+  ];
+
+  return rows.map((row) {
+    final better = row["better"];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(child: buildCompareValue(row["v1"], better == 1)),
+          Expanded(
+            child: Center(
+              child: Text(
+                row["title"],
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: buildCompareValue(row["v2"], better == 2)),
+        ],
+      ),
+    );
+  }).toList();
+}
+Widget buildCompareValue(dynamic value, bool isBetter) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Icon(
+        isBetter ? Icons.check_circle : Icons.remove_circle,
+        color: isBetter ? Colors.green : Colors.redAccent,
+        size: 16,
+      ),
+      const SizedBox(width: 4),
+      Flexible(
+        child: Text(
+          (value == null || value.toString().trim().isEmpty || value.toString() == "null")
+    ? "Veri yok"
+    : value.toString(),
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.black87,
+            fontWeight: isBetter ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+int comparePrice(String p1, String p2) {
+  final n1 = extractNumber(p1);
+  final n2 = extractNumber(p2);
+
+  if (n1 == null || n2 == null) return 0;
+
+  return n1 < n2 ? 1 : 2;
+}
+
+int compareNumber(dynamic n1, dynamic n2) {
+  final v1 = double.tryParse(n1?.toString() ?? '');
+  final v2 = double.tryParse(n2?.toString() ?? '');
+
+  if (v1 == null || v2 == null) return 0;
+  if (v1 == v2) return 0;
+
+  return v1 > v2 ? 1 : 2;
+}
+
+double? extractNumber(String text) {
+  final cleaned = text.replaceAll(RegExp(r'[^0-9.]'), '');
+  return double.tryParse(cleaned);
 }
 
 
@@ -1823,7 +2004,7 @@ Widget buildDetailCard(Map<String, dynamic> detailCard) {
                     size: 16,
                     color: Color(0xFF6C63FF),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       item,
@@ -2048,7 +2229,7 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
                               child: const Icon(Icons.shopping_bag_outlined),
                             ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         baseName,
