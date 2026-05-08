@@ -1936,7 +1936,46 @@ ${userMessage}
     };
   }
 
-  const fastProductIntent =
+  const normalizedFastMessage = normalizeText(userMessage);
+
+const broadProductPatterns = [
+  'ayakkabi',
+  'ayakkabı',
+  'sneaker',
+  'saat',
+  'ceket',
+  'mont',
+  'canta',
+  'çanta',
+  'telefon',
+  'tablet',
+  'kulaklik',
+  'kulaklık',
+  'catal',
+  'çatal',
+  'catal seti',
+  'çatal seti',
+  'bicak',
+  'bıçak',
+  'tabak',
+  'tencere',
+  'parfum',
+  'parfüm',
+];
+
+const isBroadProductRequest = broadProductPatterns.some((word) => {
+  return (
+    normalizedFastMessage === word ||
+    normalizedFastMessage === `${word} oner` ||
+    normalizedFastMessage === `${word} öner` ||
+    normalizedFastMessage === `${word} lazim` ||
+    normalizedFastMessage === `${word} lazım` ||
+    normalizedFastMessage === `${word} istiyorum`
+  );
+});
+
+const fastProductIntent =
+  !isBroadProductRequest &&
   !isComparisonRequest &&
   !isSellerCompare &&
   !referenceAction &&

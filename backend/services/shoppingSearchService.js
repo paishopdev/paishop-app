@@ -65,7 +65,6 @@ async function getFallbackImage(product = {}) {
 
 async function enrichMissingImages(products = []) {
   const output = [];
-  let fallbackCount = 0;
 
   for (const product of products) {
     if (hasHttpImage(product)) {
@@ -73,21 +72,12 @@ async function enrichMissingImages(products = []) {
       continue;
     }
 
-    // Maliyet artmasın diye ilk 8 görselsiz üründe deniyoruz
-    if (fallbackCount < 8) {
-      fallbackCount++;
+    const fallbackImage = await getFallbackImage(product);
 
-      const fallbackImage = await getFallbackImage(product);
-
-      output.push({
-        ...product,
-        image: fallbackImage || '',
-      });
-
-      continue;
-    }
-
-    output.push(product);
+    output.push({
+      ...product,
+      image: fallbackImage || '',
+    });
   }
 
   return output;
@@ -133,12 +123,7 @@ async function searchProducts(query, type = 'search') {
   }
 
   if (results && results.length > 0) {
-    const firstFive = results.slice(0, 5);
-    const rest = results.slice(5);
-  
-    const enrichedFirstFive = await enrichMissingImages(firstFive);
-  
-    results = [...enrichedFirstFive, ...rest];
+    results = await enrichMissingImages(results);
   }
 
   if (results && results.length > 0) {
