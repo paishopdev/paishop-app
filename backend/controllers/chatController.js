@@ -201,15 +201,32 @@ const sendChatMessage = async (req, res) => {
       return res.status(404).json({ error: 'Sohbet bulunamadı' });
     }
 
-    const allUserChats = await Chat.find({ userId: chat.userId }).sort({ updatedAt: -1 });
-
-    const favoriteDocs = await Favorite.find({ userId: chat.userId }).sort({ createdAt: -1 });
-const favoriteProducts = favoriteDocs
-  .map((fav) => fav.product)
-  .filter(Boolean);
-
+    let allUserChats = [];
+    let favoriteProducts = [];
+    let userProfile = null;
+    
+    try {
+      const [chatsResult, favoriteDocs, profileResult] = await Promise.all([
+        Chat.find({ userId: chat.userId }).sort({ updatedAt: -1 }).limit(10),
+        Favorite.find({ userId: chat.userId }).sort({ createdAt: -1 }).limit(30),
+        User.findById(chat.userId).select(
+          'shoeSize clothingSize height weight style gender onboardingCompleted'
+        ),
+      ]);
+    
+      allUserChats = chatsResult || [];
+    
+      favoriteProducts = (favoriteDocs || [])
+        .map((fav) => fav.product)
+        .filter(Boolean);
+    
+      userProfile = profileResult || null;
+    } catch (e) {
+      console.error('Parallel context fetch error:', e.message);
+    }
+    
     const userText = message.trim();
-
+    
     chat.messages.push({
       role: 'user',
       text: userText,
@@ -224,17 +241,6 @@ const favoriteProducts = favoriteDocs
           }
         : null,
     });
-
-    let userProfile = null;
-
-try {
-  userProfile = await User.findById(chat.userId).select(
-    'shoeSize clothingSize height weight style gender onboardingCompleted'
-  );
-} catch (e) {
-  console.error('User profile fetch error:', e.message);
-}
-
 const memoryMessages = buildCrossChatMemory(chat, allUserChats);
 
 let aiResult;

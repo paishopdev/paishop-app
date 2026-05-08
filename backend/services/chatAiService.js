@@ -408,9 +408,23 @@ function filterProductsByGender(products = [], userProfile = null) {
   });
 }
 
+function normalizeSearchCacheQuery(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^\wğüşöçıİĞÜŞÖÇ\s]/gi, ' ')
+    .replace(/\b(oner|öner|listele|goster|göster|bul|ara|direkt|hemen|soru|sorma|lazim|lazım|istiyorum)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function searchWithFallback(userMessage, plannerQuery) {
-  const primaryQuery = sanitizeSearchQuery(plannerQuery || userMessage);
-  const fallbackQuery = sanitizeSearchQuery(userMessage);
+  const primaryQuery = normalizeSearchCacheQuery(
+    sanitizeSearchQuery(plannerQuery || userMessage)
+  );
+
+  const fallbackQuery = normalizeSearchCacheQuery(
+    sanitizeSearchQuery(userMessage)
+  );
 
   let results = [];
 
@@ -418,7 +432,11 @@ async function searchWithFallback(userMessage, plannerQuery) {
     results = await searchProducts(primaryQuery);
   }
 
-  if ((!results || results.length === 0) && fallbackQuery && fallbackQuery !== primaryQuery) {
+  if (
+    (!results || results.length === 0) &&
+    fallbackQuery &&
+    fallbackQuery !== primaryQuery
+  ) {
     results = await searchProducts(fallbackQuery);
   }
 
@@ -852,8 +870,8 @@ async function generatePlanner({
 }) {
   const profileText = formatUserProfile(userProfile);
   const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
-  const historyText = formatHistory(previousMessages);
-  const recentProducts = extractRecentProducts(previousMessages);
+  const historyText = formatHistory(previousMessages.slice(-6));
+  const recentProducts = extractRecentProducts(previousMessages).slice(0, 4);
 
   const plannerPrompt = `
   Sen Shopi'sin. Akıllı bir alışveriş asistanısın.
@@ -1024,6 +1042,7 @@ async function generatePlanner({
 
   const response = await client.chat.completions.create({
     model: 'gpt-4.1-mini',
+    max_tokens: 180,
     messages: [{ role: 'user', content: plannerPrompt }],
     temperature: 0.2,
   });
@@ -1053,9 +1072,9 @@ async function generateAnswer({
 }) {
   const profileText = formatUserProfile(userProfile);
   const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
-  const historyText = formatHistory(previousMessages);
-  const recentProducts = extractRecentProducts(previousMessages);
-  const normalizedSearchedProducts = normalizeProducts(searchedProducts);
+  const historyText = formatHistory(previousMessages.slice(-6));
+  const recentProducts = extractRecentProducts(previousMessages).slice(0, 4);
+  const normalizedSearchedProducts = normalizeProducts(searchedProducts).slice(0, 10);
 
   const answerPrompt = `
 Sen Shopi’sin. Kullanıcılara ürün bulma, karşılaştırma ve alışveriş kararlarında yardımcı olan akıllı ve samimi bir asistansın.
@@ -1073,6 +1092,7 @@ Kurallar:
 - short_reason doğal, spesifik ve kullanıcı isteğine uygun olsun.
 - Kullanıcının davranışsal özeti, genel ürün önerilerinde beden/boy/kilo gibi profil alanlarından daha önceliklidir.
 - Kullanıcı kendi ilgi alanlarını sormuyorsa profil bilgilerini doğrudan söyleme.
+- Eğer rating veya reviews null ise bunları uydurma, null bırak.
 - Genel önerilerde önce davranışsal tercihleri kullan, profil bilgilerini sadece gerekiyorsa ince ayar olarak kullan.
 - Yeni sohbet açılmış olsa bile geçmiş sohbet davranışlarını alışveriş hafızası olarak dikkate al.
 - Eğer kullanıcı profili varsa ürün önerirken bunu dikkate al.
@@ -1153,11 +1173,12 @@ Kullanıcının son mesajı:
 ${userMessage}
 `;
 
-  const response = await client.chat.completions.create({
-    model: 'gpt-4.1-mini',
-    messages: [{ role: 'user', content: answerPrompt }],
-    temperature: 0.7,
-  });
+const response = await client.chat.completions.create({
+  model: 'gpt-4.1-mini',
+  messages: [{ role: 'user', content: answerPrompt }],
+  temperature: 0.4,
+  max_tokens: 500,
+});
 
   const text = response.choices[0].message.content;
 const parsed = safeParseJson(text);
@@ -1915,12 +1936,26 @@ ${userMessage}
     };
   }
 
-  const planner = await generatePlanner({
-    userMessage,
-    previousMessages,
-    userProfile,
-    favoriteProducts,
-  });
+  const fastProductIntent =
+  !isComparisonRequest &&
+  !isSellerCompare &&
+  !referenceAction &&
+  !isReviewRequest(userMessage) &&
+  !selectedProduct;
+
+  let planner = {
+    needs_product_search: true,
+    search_query: userMessage,
+  };
+  
+  if (!fastProductIntent) {
+    planner = await generatePlanner({
+      userMessage,
+      previousMessages,
+      userProfile,
+      favoriteProducts,
+    });
+  }
   
   const normalizedMessage = normalizeText(userMessage.trim());
   const wordCount = normalizedMessage.split(/\s+/).filter(Boolean).length;
@@ -2013,7 +2048,7 @@ ${userMessage}
     );
 
     if (hasPriceFilter && filteredResults.length < 3) {
-      const broaderResults = await searchProducts(query)(
+      const broaderResults = await searchProducts(
         sanitizeSearchQuery(userMessage)
       );
 
@@ -2114,7 +2149,24 @@ ${userMessage}
     }
   }
 
-  const answer = await generateAnswer({
+  let answer;
+
+const canSkipAnswerAI =
+  planner.needs_product_search === true &&
+  Array.isArray(searchedProducts) &&
+  searchedProducts.length > 0 &&
+  !isComparisonRequest &&
+  !isSellerCompare &&
+  !referenceAction;
+
+if (canSkipAnswerAI) {
+  answer = {
+    assistant_text: 'Senin için uygun ürünleri listeledim.',
+    products: normalizeProducts(searchedProducts),
+    actions: buildFallbackActions(searchedProducts, planner, userMessage),
+  };
+} else {
+  answer = await generateAnswer({
     userMessage,
     previousMessages,
     planner,
@@ -2122,6 +2174,7 @@ ${userMessage}
     userProfile,
     favoriteProducts,
   });
+}
   
   const finalProducts =
     Array.isArray(answer.products) && answer.products.length > 0

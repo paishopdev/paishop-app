@@ -1487,12 +1487,18 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
         ),
         
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
+  BoxShadow(
+    color: primaryColor.withOpacity(0.10),
+    blurRadius: 30,
+    spreadRadius: 2,
+    offset: const Offset(0, 10),
+  ),
+  BoxShadow(
+    color: Colors.black.withOpacity(0.04),
+    blurRadius: 16,
+    offset: const Offset(0, 6),
+  ),
+],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1578,12 +1584,18 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
       borderRadius: BorderRadius.circular(26),
       border: Border.all(color: Colors.grey.shade200),
       boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 16,
-          offset: const Offset(0, 6),
-        ),
-      ],
+  BoxShadow(
+    color: primaryColor.withOpacity(0.08),
+    blurRadius: 26,
+    spreadRadius: 1,
+    offset: const Offset(0, 10),
+  ),
+  BoxShadow(
+    color: Colors.black.withOpacity(0.035),
+    blurRadius: 16,
+    offset: const Offset(0, 6),
+  ),
+],
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1592,69 +1604,77 @@ Widget buildComparisonBox(Map<String, dynamic> comparison) {
         if (winnerProduct != null) ...[
           const SizedBox(height: 14),
           Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(isTablet ? 16 : 14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  primaryColor.withOpacity(0.14),
-                  primaryColor.withOpacity(0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: primaryColor.withOpacity(0.15)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                buildBadge("En iyi seçim", Icons.workspace_premium_rounded),
-                const SizedBox(height: 12),
-                buildImage(
-                  (winnerProduct["image"] ?? "").toString().trim(),
-                  true,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  (winnerProduct["name"] ?? "").toString().trim(),
-                  maxLines: isTablet ? 3 : 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: isTablet ? 16.5 : 15,
-                    fontWeight: FontWeight.w800,
-                    height: 1.3,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  (winnerProduct["price"] ?? "").toString().trim(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: primaryColor,
-                    fontSize: isTablet ? 17 : 16,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                if (summary.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    summary,
-                    maxLines: isTablet ? 3 : 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: isTablet ? 13.5 : 12.5,
-                      height: 1.4,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+  width: double.infinity,
+  padding: EdgeInsets.all(isTablet ? 16 : 14),
+  decoration: BoxDecoration(
+    gradient: LinearGradient(
+     colors: [
+  primaryColor.withOpacity(0.18),
+  primaryColor.withOpacity(0.04),
+],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: BorderRadius.circular(26),
+    border: Border.all(color: primaryColor.withOpacity(0.15)),
+    boxShadow: [
+      BoxShadow(
+        color: primaryColor.withOpacity(0.18),
+        blurRadius: 34,
+        spreadRadius: 2,
+        offset: const Offset(0, 8),
+      ),
+    ],
+  ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      buildBadge("En iyi seçim", Icons.workspace_premium_rounded),
+      const SizedBox(height: 12),
+      buildImage(
+        (winnerProduct["image"] ?? "").toString().trim(),
+        true,
+      ),
+      const SizedBox(height: 12),
+      Text(
+        (winnerProduct["name"] ?? "").toString().trim(),
+        maxLines: isTablet ? 3 : 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: isTablet ? 16.5 : 15,
+          fontWeight: FontWeight.w800,
+          height: 1.3,
+          color: Colors.black87,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        (winnerProduct["price"] ?? "").toString().trim(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: primaryColor,
+          fontSize: isTablet ? 17 : 16,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      if (summary.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        Text(
+          summary,
+          maxLines: isTablet ? 3 : 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: Colors.grey.shade700,
+            fontSize: isTablet ? 13.5 : 12.5,
+            height: 1.4,
+            fontWeight: FontWeight.w500,
           ),
+        ),
+      ],
+    ],
+  ),
+),
         ],
         if (highlights.isNotEmpty) ...[
           const SizedBox(height: 14),
@@ -1711,15 +1731,36 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
   final image = (item["image"] ?? "").toString();
   final platform = (item["platform"] ?? "").toString();
 
-  return SizedBox(
+  return TweenAnimationBuilder<double>(
+  tween: Tween(begin: 0.96, end: 1),
+  duration: const Duration(milliseconds: 320),
+  curve: Curves.easeOutCubic,
+  builder: (context, value, child) {
+    return Transform.scale(
+      scale: value,
+      child: Opacity(
+        opacity: value,
+        child: child,
+      ),
+    );
+  },
+  child: SizedBox(
     height: 340,
     child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+  color: Colors.white,
+  borderRadius: BorderRadius.circular(18),
+  border: Border.all(color: Colors.grey.shade200),
+
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withOpacity(0.045),
+      blurRadius: 14,
+      offset: const Offset(0, 6),
+    ),
+  ],
+),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1787,7 +1828,7 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
         ],
       ),
     ),
-  );
+  ));
 }
 
 List<Widget> buildComparisonDetails(
@@ -1847,7 +1888,17 @@ List<Widget> buildComparisonDetails(
   }).toList();
 }
 Widget buildCompareValue(dynamic value, bool isBetter) {
-  return Row(
+  return TweenAnimationBuilder<double>(
+  tween: Tween(begin: 0.8, end: 1),
+  duration: const Duration(milliseconds: 280),
+  curve: Curves.easeOutBack,
+  builder: (context, value, child) {
+    return Transform.scale(
+      scale: value,
+      child: child,
+    );
+  },
+  child: Row(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
       Icon(
@@ -1859,18 +1910,19 @@ Widget buildCompareValue(dynamic value, bool isBetter) {
       Flexible(
         child: Text(
           (value == null || value.toString().trim().isEmpty || value.toString() == "null")
-    ? "Veri yok"
-    : value.toString(),
+              ? "Veri yok"
+              : value.toString(),
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12,
             color: Colors.black87,
-            fontWeight: isBetter ? FontWeight.w700 : FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
     ],
-  );
+  ),
+);
 }
 int comparePrice(String p1, String p2) {
   final n1 = extractNumber(p1);

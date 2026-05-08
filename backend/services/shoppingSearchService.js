@@ -133,7 +133,12 @@ async function searchProducts(query, type = 'search') {
   }
 
   if (results && results.length > 0) {
-    results = await enrichMissingImages(results);
+    const firstFive = results.slice(0, 5);
+    const rest = results.slice(5);
+  
+    const enrichedFirstFive = await enrichMissingImages(firstFive);
+  
+    results = [...enrichedFirstFive, ...rest];
   }
 
   if (results && results.length > 0) {

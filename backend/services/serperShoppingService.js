@@ -80,13 +80,13 @@ async function searchSerperShopping(query) {
 
   const response = await axios.post(
     'https://google.serper.dev/shopping',
-    { q: query, gl: 'tr', hl: 'tr' },
+    { q: query, gl: 'tr', hl: 'tr', num: 20 },
     {
       headers: {
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',
       },
-      timeout: 20000,
+      timeout: 12000,
     }
   );
 
@@ -96,9 +96,12 @@ async function searchSerperShopping(query) {
     response.data.results ||
     [];
 
-  console.log('FIRST SERPER SHOPPING RESULT:', JSON.stringify(results[0], null, 2));
+  console.log(
+    'SERPER FIRST RESULT:',
+    results[0]?.title || results[0]?.name || 'no result'
+  );
 
-  return results.slice(0, 40).map((item) => ({
+  return results.slice(0, 20).map((item) => ({
     name: item.title || item.name || 'Unknown product',
     price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
     platform: item.source || item.seller || item.merchant || 'Unknown store',
@@ -119,19 +122,19 @@ async function searchSerperImages(query) {
 
   const response = await axios.post(
     'https://google.serper.dev/images',
-    { q: query, gl: 'tr', hl: 'tr' },
+    { q: query, gl: 'tr', hl: 'tr', num: 5 },
     {
       headers: {
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',
       },
-      timeout: 20000,
+      timeout: 8000,
     }
   );
 
   const results = response.data.images || [];
 
-  for (const item of results) {
+  for (const item of results.slice(0, 5)) {
     const img =
       item.imageUrl ||
       item.thumbnailUrl ||
