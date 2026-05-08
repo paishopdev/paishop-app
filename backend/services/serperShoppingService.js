@@ -101,7 +101,7 @@ async function searchSerperShopping(query) {
     results[0]?.title || results[0]?.name || 'no result'
   );
 
-  return results.slice(0, 20).map((item) => ({
+  return results.slice(0, 5).map((item) => ({
     name: item.title || item.name || 'Unknown product',
     price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
     platform: item.source || item.seller || item.merchant || 'Unknown store',

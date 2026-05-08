@@ -1974,27 +1974,12 @@ const isBroadProductRequest = broadProductPatterns.some((word) => {
   );
 });
 
-const fastProductIntent =
-  !isBroadProductRequest &&
-  !isComparisonRequest &&
-  !isSellerCompare &&
-  !referenceAction &&
-  !isReviewRequest(userMessage) &&
-  !selectedProduct;
-
-  let planner = {
-    needs_product_search: true,
-    search_query: userMessage,
-  };
-  
-  if (!fastProductIntent) {
-    planner = await generatePlanner({
-      userMessage,
-      previousMessages,
-      userProfile,
-      favoriteProducts,
-    });
-  }
+const planner = await generatePlanner({
+  userMessage,
+  previousMessages,
+  userProfile,
+  favoriteProducts,
+});
   
   const normalizedMessage = normalizeText(userMessage.trim());
   const wordCount = normalizedMessage.split(/\s+/).filter(Boolean).length;
