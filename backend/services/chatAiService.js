@@ -408,23 +408,9 @@ function filterProductsByGender(products = [], userProfile = null) {
   });
 }
 
-function normalizeSearchCacheQuery(text = '') {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/[^\wğüşöçıİĞÜŞÖÇ\s]/gi, ' ')
-    .replace(/\b(oner|öner|listele|goster|göster|bul|ara|direkt|hemen|soru|sorma|lazim|lazım|istiyorum)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 async function searchWithFallback(userMessage, plannerQuery) {
-  const primaryQuery = normalizeSearchCacheQuery(
-    sanitizeSearchQuery(plannerQuery || userMessage)
-  );
-
-  const fallbackQuery = normalizeSearchCacheQuery(
-    sanitizeSearchQuery(userMessage)
-  );
+  const primaryQuery = sanitizeSearchQuery(plannerQuery || userMessage);
+  const fallbackQuery = sanitizeSearchQuery(userMessage);
 
   let results = [];
 
@@ -870,8 +856,8 @@ async function generatePlanner({
 }) {
   const profileText = formatUserProfile(userProfile);
   const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
-  const historyText = formatHistory(previousMessages.slice(-6));
-  const recentProducts = extractRecentProducts(previousMessages).slice(0, 4);
+  const historyText = formatHistory(previousMessages);
+  const recentProducts = extractRecentProducts(previousMessages);
 
   const plannerPrompt = `
   Sen Shopi'sin. Akıllı bir alışveriş asistanısın.
@@ -1042,7 +1028,6 @@ async function generatePlanner({
 
   const response = await client.chat.completions.create({
     model: 'gpt-4.1-mini',
-    max_tokens: 180,
     messages: [{ role: 'user', content: plannerPrompt }],
     temperature: 0.2,
   });
@@ -1072,9 +1057,9 @@ async function generateAnswer({
 }) {
   const profileText = formatUserProfile(userProfile);
   const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
-  const historyText = formatHistory(previousMessages.slice(-6));
-  const recentProducts = extractRecentProducts(previousMessages).slice(0, 4);
-  const normalizedSearchedProducts = normalizeProducts(searchedProducts).slice(0, 10);
+  const historyText = formatHistory(previousMessages);
+  const recentProducts = extractRecentProducts(previousMessages);
+  const normalizedSearchedProducts = normalizeProducts(searchedProducts);
 
   const answerPrompt = `
 Sen Shopi’sin. Kullanıcılara ürün bulma, karşılaştırma ve alışveriş kararlarında yardımcı olan akıllı ve samimi bir asistansın.
@@ -1092,7 +1077,6 @@ Kurallar:
 - short_reason doğal, spesifik ve kullanıcı isteğine uygun olsun.
 - Kullanıcının davranışsal özeti, genel ürün önerilerinde beden/boy/kilo gibi profil alanlarından daha önceliklidir.
 - Kullanıcı kendi ilgi alanlarını sormuyorsa profil bilgilerini doğrudan söyleme.
-- Eğer rating veya reviews null ise bunları uydurma, null bırak.
 - Genel önerilerde önce davranışsal tercihleri kullan, profil bilgilerini sadece gerekiyorsa ince ayar olarak kullan.
 - Yeni sohbet açılmış olsa bile geçmiş sohbet davranışlarını alışveriş hafızası olarak dikkate al.
 - Eğer kullanıcı profili varsa ürün önerirken bunu dikkate al.
@@ -1126,6 +1110,7 @@ Kurallar:
 - Ürün detay cevaplarında düz paragraf yerine kısa maddeler kullan.
 - Markdown tablo kullanma.
 - Her satır kısa ve okunabilir olsun.
+- Eğer rating veya reviews null ise bunları uydurma, null bırak.
 - Sadece JSON döndür.
 - Markdown kullanma.
 
@@ -1173,21 +1158,20 @@ Kullanıcının son mesajı:
 ${userMessage}
 `;
 
-const response = await client.chat.completions.create({
-  model: 'gpt-4.1-mini',
-  messages: [{ role: 'user', content: answerPrompt }],
-  temperature: 0.4,
-  max_tokens: 500,
-});
+  const response = await client.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages: [{ role: 'user', content: answerPrompt }],
+    temperature: 0.7,
+  });
 
   const text = response.choices[0].message.content;
-const parsed = safeParseJson(text);
+  const parsed = safeParseJson(text);
 
-return parsed || {
-  assistant_text: 'Bir hata oldu ama yardımcı olmaya devam edebilirim. İstersen isteğini biraz daha kısa yaz.',
-  products: [],
-  actions: [],
-};
+  return parsed || {
+    assistant_text: 'Bir hata oldu ama yardımcı olmaya devam edebilirim. İstersen isteğini biraz daha kısa yaz.',
+    products: [],
+    actions: [],
+  };
 }
 
 function normalizeActionLabel(text = '') {
@@ -2173,24 +2157,7 @@ const planner = await generatePlanner({
     }
   }
 
-  let answer;
-
-const canSkipAnswerAI =
-  planner.needs_product_search === true &&
-  Array.isArray(searchedProducts) &&
-  searchedProducts.length > 0 &&
-  !isComparisonRequest &&
-  !isSellerCompare &&
-  !referenceAction;
-
-if (canSkipAnswerAI) {
-  answer = {
-    assistant_text: 'Senin için uygun ürünleri listeledim.',
-    products: normalizeProducts(searchedProducts),
-    actions: buildFallbackActions(searchedProducts, planner, userMessage),
-  };
-} else {
-  answer = await generateAnswer({
+  const answer = await generateAnswer({
     userMessage,
     previousMessages,
     planner,
@@ -2198,7 +2165,6 @@ if (canSkipAnswerAI) {
     userProfile,
     favoriteProducts,
   });
-}
   
   const finalProducts =
     Array.isArray(answer.products) && answer.products.length > 0

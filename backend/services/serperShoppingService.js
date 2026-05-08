@@ -101,7 +101,7 @@ async function searchSerperShopping(query) {
     results[0]?.title || results[0]?.name || 'no result'
   );
 
-  return results.slice(0, 5).map((item) => ({
+  return results.slice(0, 10).map((item) => ({
     name: item.title || item.name || 'Unknown product',
     price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
     platform: item.source || item.seller || item.merchant || 'Unknown store',
@@ -122,19 +122,19 @@ async function searchSerperImages(query) {
 
   const response = await axios.post(
     'https://google.serper.dev/images',
-    { q: query, gl: 'tr', hl: 'tr', num: 5 },
+    { q: query, gl: 'tr', hl: 'tr' },
     {
       headers: {
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',
       },
-      timeout: 8000,
+      timeout: 20000,
     }
   );
 
   const results = response.data.images || [];
 
-  for (const item of results.slice(0, 5)) {
+  for (const item of results) {
     const img =
       item.imageUrl ||
       item.thumbnailUrl ||
