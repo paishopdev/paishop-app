@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
+import 'package:speech_to_text/speech_to_text.dart';
 
 
 class ChatMessage {
@@ -205,6 +206,8 @@ void askAboutProduct(Product product) {
 Future<void> startListening() async {
   final available = await speech.initialize(
     onStatus: (status) {
+      debugPrint("Speech status: $status");
+
       if (status == 'done' || status == 'notListening') {
         if (!mounted) return;
         setState(() {
@@ -221,15 +224,33 @@ Future<void> startListening() async {
     },
   );
 
-  if (!available) return;
+  if (!available) {
+    debugPrint("Speech not available");
+    return;
+  }
 
   final locales = await speech.locales();
 
+  for (final locale in locales) {
+    debugPrint("AVAILABLE SPEECH LOCALE: ${locale.localeId} - ${locale.name}");
+  }
+
   final turkishLocale = locales.firstWhere(
-    (locale) =>
-        locale.localeId.toLowerCase() == 'tr_tr' ||
-        locale.localeId.toLowerCase().startsWith('tr'),
-    orElse: () => locales.first,
+    (locale) {
+      final id = locale.localeId.toLowerCase();
+      final name = locale.name.toLowerCase();
+
+      return id == 'tr_tr' ||
+          id == 'tr-tr' ||
+          id.startsWith('tr') ||
+          name.contains('turkish') ||
+          name.contains('türk') ||
+          name.contains('turk');
+    },
+    orElse: () {
+      debugPrint("Turkish locale not found, forcing tr_TR");
+      return LocaleName('tr_TR', 'Turkish');
+    },
   );
 
   debugPrint("SPEECH SELECTED LOCALE: ${turkishLocale.localeId}");
@@ -240,8 +261,13 @@ Future<void> startListening() async {
   });
 
   await speech.listen(
-  localeId: turkishLocale.localeId,
-  onResult: (result) {
+    localeId: turkishLocale.localeId,
+    listenFor: const Duration(seconds: 20),
+    pauseFor: const Duration(seconds: 3),
+    cancelOnError: true,
+    onResult: (result) {
+      debugPrint("SPEECH WORDS: ${result.recognizedWords}");
+
       if (!mounted) return;
       setState(() {
         controller.text = result.recognizedWords;
@@ -954,20 +980,15 @@ Future<void> search() async {
         : null;
 
     if (chatIdForRequest == currentChatId) {
-      setState(() {
-        messages.add(
-          ChatMessage(
-            text: rawAssistantText,
-            isUser: false,
-            products: products,
-            actions: actions,
-            comparison: comparison,
-            detailCard: detailCard,
-            reviewCard: reviewCard,
-            sellerComparison: sellerComparison,
-          ),
-        );
-      });
+      await addAssistantMessageWithTyping(
+  text: rawAssistantText,
+  products: products,
+  actions: actions,
+  comparison: comparison,
+  detailCard: detailCard,
+  reviewCard: reviewCard,
+  sellerComparison: sellerComparison,
+);
 
       scrollToAssistantStart();
     }
@@ -996,6 +1017,56 @@ Future<void> search() async {
       });
     }
   }
+}
+Future<void> addAssistantMessageWithTyping({
+  required String text,
+  required List<Product> products,
+  required List<String> actions,
+  Map<String, dynamic>? comparison,
+  Map<String, dynamic>? detailCard,
+  Map<String, dynamic>? reviewCard,
+  Map<String, dynamic>? sellerComparison,
+}) async {
+  final fullText = text.trim();
+
+  messages.add(
+    ChatMessage(
+      text: "",
+      isUser: false,
+    ),
+  );
+
+  final messageIndex = messages.length - 1;
+
+  for (int i = 0; i <= fullText.length; i++) {
+    if (!mounted) return;
+
+    setState(() {
+      messages[messageIndex] = ChatMessage(
+        text: fullText.substring(0, i),
+        isUser: false,
+      );
+    });
+
+    scrollToAssistantStart();
+
+    await Future.delayed(const Duration(milliseconds: 14));
+  }
+
+  if (!mounted) return;
+
+  setState(() {
+    messages[messageIndex] = ChatMessage(
+      text: fullText,
+      isUser: false,
+      products: products,
+      actions: actions,
+      comparison: comparison,
+      detailCard: detailCard,
+      reviewCard: reviewCard,
+      sellerComparison: sellerComparison,
+    );
+  });
 }
 
 Future<void> sendQuickAction(String action) async {
