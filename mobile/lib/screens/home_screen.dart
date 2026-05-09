@@ -81,6 +81,8 @@ bool isListening = false;
   Map<String, String> chatLastSeenMap = {};
 
   bool loading = false;
+  String? loadingChatId;
+  String loadingMode = 'products';
   String currentChatId = '';
   String currentChatTitle = 'Yeni Sohbet';
   String userId = '';
@@ -897,6 +899,48 @@ setState(() {
     }
   }
 
+  String detectLoadingMode(String text, Product? selectedProduct) {
+  final q = text.toLowerCase();
+
+  if (q.contains('satıcı') ||
+      q.contains('satici') ||
+      q.contains('mağaza') ||
+      q.contains('magaza') ||
+      q.contains('farklı satıcı') ||
+      q.contains('farkli satici')) {
+    return 'seller';
+  }
+
+  if (q.contains('yorum') ||
+      q.contains('kullanıcı') ||
+      q.contains('kullanici') ||
+      q.contains('değerlendirme') ||
+      q.contains('degerlendirme')) {
+    return 'review';
+  }
+
+  if (q.contains('detay') ||
+      q.contains('özellik') ||
+      q.contains('ozellik') ||
+      q.contains('nasıl') ||
+      q.contains('nasil')) {
+    return 'detail';
+  }
+
+  if (q.contains('karşılaştır') ||
+      q.contains('karsilastir') ||
+      q.contains('hangisi') ||
+      q.contains('en iyisi')) {
+    return 'comparison';
+  }
+
+  return 'products';
+}
+
+bool shouldShowLoadingForCurrentChat() {
+  return loading && loadingChatId == currentChatId;
+}
+
 Future<void> search() async {
   if (loading) return;
 
@@ -913,15 +957,18 @@ Future<void> search() async {
 
   String chatIdForRequest = currentChatId;
 
-  setState(() {
-    loading = true;
-  });
-
   try {
     if (chatIdForRequest.isEmpty) {
       await createNewChatIfNeeded(query);
       chatIdForRequest = currentChatId;
     }
+
+    if (!mounted) return;
+setState(() {
+  loading = true;
+  loadingChatId = chatIdForRequest;
+  loadingMode = detectLoadingMode(query, selectedContextBeforeSend);
+});
 
     if (chatIdForRequest == currentChatId) {
       setState(() {
@@ -1013,8 +1060,10 @@ Future<void> search() async {
   } finally {
     if (mounted) {
       setState(() {
-        loading = false;
-      });
+  loading = false;
+  loadingChatId = null;
+  loadingMode = 'products';
+});
     }
   }
 }
@@ -1335,18 +1384,13 @@ Widget buildMessageBubble(ChatMessage message) {
 }
 
   Widget buildProducts(List<Product> products) {
-  return Column(
-  children: products
-      .map(
-        (product) => ProductCard(
-          product: product,
-          isFavorite: favoriteLinks.contains(product.link),
-          onFavorite: () => toggleFavorite(product),
-          onAskAboutProduct: () => askAboutProduct(product),
-        ),
-      )
-      .toList(),
-);
+  return AnimatedProductList(
+    key: ValueKey(products.map((p) => p.link).join('|')),
+    products: products,
+    favoriteLinks: favoriteLinks,
+    onFavorite: toggleFavorite,
+    onAskAboutProduct: askAboutProduct,
+  );
 }
 
 Widget buildComparisonBox(Map<String, dynamic> comparison) {
@@ -2505,6 +2549,23 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
     ),
   );
 }
+Widget animatedAppear(Widget child, {int delayMs = 0}) {
+  return TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: Duration(milliseconds: 320 + delayMs),
+    curve: Curves.easeOutCubic,
+    builder: (context, value, child) {
+      return Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, 18 * (1 - value)),
+          child: child,
+        ),
+      );
+    },
+    child: child,
+  );
+}
 Widget buildChatItem(ChatMessage message) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2546,51 +2607,71 @@ Widget buildChatItem(ChatMessage message) {
       buildMessageBubble(message),
 
       if (!message.isUser && message.reviewCard != null)
-  buildReviewCard(message.reviewCard!)
-else if (!message.isUser && message.detailCard != null)
-  buildDetailCard(message.detailCard!)
-else if (!message.isUser && message.products.isNotEmpty)
-  buildProducts(message.products),
+        animatedAppear(
+          buildReviewCard(message.reviewCard!),
+          delayMs: 80,
+        )
+      else if (!message.isUser && message.detailCard != null)
+        animatedAppear(
+          buildDetailCard(message.detailCard!),
+          delayMs: 80,
+        )
+      else if (!message.isUser && message.products.isNotEmpty)
+        animatedAppear(
+          buildProducts(message.products),
+          delayMs: 80,
+        ),
 
       if (!message.isUser && message.comparison != null)
-        buildComparisonBox(message.comparison!),
+        animatedAppear(
+          buildComparisonBox(message.comparison!),
+          delayMs: 120,
+        ),
 
-        if (!message.isUser && message.sellerComparison != null)
-  buildSellerComparisonCard(message.sellerComparison!),
+      if (!message.isUser && message.sellerComparison != null)
+        animatedAppear(
+          buildSellerComparisonCard(message.sellerComparison!),
+          delayMs: 120,
+        ),
 
       if (!message.isUser && message.actions.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 10),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: message.actions.map((action) {
-              return InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: loading
-                    ? null
-                    : () {
-                        controller.text = action;
-                        search();
-                      },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.18)),
-                  ),
-                  child: Text(
-                    action,
-                    style: const TextStyle(
-                      color: Color(0xFF6C63FF),
-                      fontWeight: FontWeight.w600,
+        animatedAppear(
+          Padding(
+            padding: const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 10),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: message.actions.map((action) {
+                return InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: loading
+                      ? null
+                      : () {
+                          controller.text = action;
+                          search();
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF6C63FF).withOpacity(0.18),
+                      ),
+                    ),
+                    child: Text(
+                      action,
+                      style: const TextStyle(
+                        color: Color(0xFF6C63FF),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            ),
           ),
+          delayMs: 180,
         ),
     ],
   );
@@ -2979,7 +3060,8 @@ final contentMaxWidth = ResponsiveHelper.contentMaxWidth(context);
         children: [
           ...messages.map((message) => buildChatItem(message)),
           if (!loading) buildQuickSuggestions(),
-          if (loading) const TypingIndicator(),
+          if (shouldShowLoadingForCurrentChat())
+  ProductSkeletonLoading(mode: loadingMode),
         ],
       ),
     ),
@@ -3353,6 +3435,355 @@ SafeArea(
 ),
         ],
       ),
+    );
+  }
+}
+class AnimatedProductList extends StatefulWidget {
+  final List<Product> products;
+  final Iterable<String> favoriteLinks;
+  final void Function(Product product) onFavorite;
+  final void Function(Product product) onAskAboutProduct;
+
+  const AnimatedProductList({
+    super.key,
+    required this.products,
+    required this.favoriteLinks,
+    required this.onFavorite,
+    required this.onAskAboutProduct,
+  });
+
+  @override
+  State<AnimatedProductList> createState() => _AnimatedProductListState();
+}
+
+class _AnimatedProductListState extends State<AnimatedProductList> {
+  int visibleCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _showProductsOneByOne();
+  }
+
+  Future<void> _showProductsOneByOne() async {
+    setState(() {
+      visibleCount = 0;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 120));
+
+    for (int i = 0; i < widget.products.length; i++) {
+      if (!mounted) return;
+
+      setState(() {
+        visibleCount = i + 1;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 250));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(visibleCount, (index) {
+        final product = widget.products[index];
+
+        return TweenAnimationBuilder<double>(
+          key: ValueKey('${product.link}-$index'),
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value,
+              child: Transform.translate(
+                offset: Offset(0, -28 * (1 - value)),
+                child: child,
+              ),
+            );
+          },
+          child: ProductCard(
+            product: product,
+            isFavorite: widget.favoriteLinks.contains(product.link),
+            onFavorite: () => widget.onFavorite(product),
+            onAskAboutProduct: () => widget.onAskAboutProduct(product),
+          ),
+        );
+      }),
+    );
+  }
+}
+class ProductSkeletonLoading extends StatefulWidget {
+  final String mode;
+
+  const ProductSkeletonLoading({
+    super.key,
+    this.mode = 'products',
+  });
+
+  @override
+  State<ProductSkeletonLoading> createState() => _ProductSkeletonLoadingState();
+}
+
+class _ProductSkeletonLoadingState extends State<ProductSkeletonLoading>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  int stageIndex = 0;
+
+  List<String> get stages {
+    switch (widget.mode) {
+      case 'seller':
+        return const [
+          "Satıcılar aranıyor...",
+          "Fiyatlar karşılaştırılıyor...",
+          "En uygun mağazalar hazırlanıyor...",
+        ];
+      case 'review':
+        return const [
+          "Yorumlar analiz ediliyor...",
+          "Kullanıcı deneyimleri özetleniyor...",
+          "Artılar ve eksiler çıkarılıyor...",
+        ];
+      case 'detail':
+        return const [
+          "Ürün detayları inceleniyor...",
+          "Özellikler özetleniyor...",
+          "Kullanıma uygunluğu değerlendiriliyor...",
+        ];
+      case 'comparison':
+        return const [
+          "Ürünler karşılaştırılıyor...",
+          "Güçlü ve zayıf yönler çıkarılıyor...",
+          "En mantıklı seçenek hazırlanıyor...",
+        ];
+      default:
+        return const [
+          "Ürünler aranıyor...",
+          "Görseller hazırlanıyor...",
+          "En uygun seçenekler sıralanıyor...",
+        ];
+    }
+  }
+
+  bool get isMiniMode => widget.mode != 'products';
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+
+    _animation = Tween<double>(begin: -1.0, end: 2.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    rotateStages();
+  }
+
+  Future<void> rotateStages() async {
+    while (mounted) {
+      await Future.delayed(const Duration(milliseconds: 1300));
+      if (!mounted) return;
+
+      setState(() {
+        stageIndex = (stageIndex + 1) % stages.length;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget shimmerBox({
+    required double height,
+    double? width,
+    double radius = 14,
+  }) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          height: height,
+          width: width ?? double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            gradient: LinearGradient(
+              begin: Alignment(-1 + _animation.value, 0),
+              end: Alignment(_animation.value, 0),
+              colors: [
+                Colors.grey.shade200,
+                Colors.grey.shade100,
+                Colors.grey.shade200,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget stageHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 280),
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.25),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          );
+        },
+        child: Row(
+          key: ValueKey('${widget.mode}-$stageIndex'),
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C63FF).withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                size: 15,
+                color: Color(0xFF6C63FF),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                stages[stageIndex],
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget miniLoadingCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.035),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          shimmerBox(height: 36, width: 36, radius: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                shimmerBox(height: 13, width: double.infinity, radius: 8),
+                const SizedBox(height: 9),
+                shimmerBox(height: 13, width: 180, radius: 8),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget verticalSkeletonCard() {
+    return Expanded(
+      child: Container(
+        height: 255,
+        margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            shimmerBox(height: 120, radius: 18),
+            const SizedBox(height: 12),
+            shimmerBox(height: 14, radius: 8),
+            const SizedBox(height: 8),
+            shimmerBox(height: 14, width: 110, radius: 8),
+            const SizedBox(height: 14),
+            shimmerBox(height: 18, width: 80, radius: 9),
+            const SizedBox(height: 10),
+            shimmerBox(height: 12, width: 120, radius: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget productGridSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              verticalSkeletonCard(),
+              verticalSkeletonCard(),
+            ],
+          ),
+          Row(
+            children: [
+              verticalSkeletonCard(),
+              verticalSkeletonCard(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        stageHeader(),
+        if (isMiniMode)
+          miniLoadingCard()
+        else
+          productGridSkeleton(),
+      ],
     );
   }
 }

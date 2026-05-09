@@ -735,53 +735,136 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
   };
 }
 
+function normalizeRefText(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/[^\w\s.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getProductSearchText(product = {}) {
+  return normalizeRefText(
+    [
+      product.name || '',
+      product.platform || '',
+      product.price || '',
+      ...(Array.isArray(product.memory_keywords) ? product.memory_keywords : []),
+      ...(Array.isArray(product.memory_position_labels)
+        ? product.memory_position_labels
+        : []),
+    ].join(' ')
+  );
+}
+
 function resolveProductReference(userMessage = '', recentProducts = []) {
-  const text = String(userMessage).toLowerCase();
+  const text = normalizeRefText(userMessage);
 
   if (!recentProducts || recentProducts.length === 0) {
     return null;
   }
 
-  if (
-    text.includes('ilk ürün') ||
-    text.includes('1. ürün') ||
-    text.includes('birinci ürün')
-  ) {
-    return recentProducts[0] || null;
+  const byIndex = (index) => recentProducts[index] || null;
+
+  const indexPatterns = [
+    { index: 0, patterns: ['ilk urun', '1. urun', 'birinci urun', '1 urun'] },
+    { index: 1, patterns: ['ikinci urun', '2. urun', '2 urun'] },
+    { index: 2, patterns: ['ucuncu urun', '3. urun', '3 urun'] },
+    { index: 3, patterns: ['dorduncu urun', '4. urun', '4 urun'] },
+    { index: 4, patterns: ['besinci urun', '5. urun', '5 urun'] },
+  ];
+
+  for (const item of indexPatterns) {
+    if (item.patterns.some((p) => text.includes(p))) {
+      return byIndex(item.index);
+    }
   }
 
-  if (
-    text.includes('ikinci ürün') ||
-    text.includes('2. ürün')
-  ) {
-    return recentProducts[1] || null;
+  if (text.includes('son urun') || text.includes('az onceki urun')) {
+    return recentProducts[recentProducts.length - 1] || null;
   }
 
-  if (
-    text.includes('üçüncü ürün') ||
-    text.includes('3. ürün')
-  ) {
-    return recentProducts[2] || null;
-  }
-
-  if (
-    text.includes('en ucuz') ||
-    text.includes('daha ucuz olan')
-  ) {
+  if (text.includes('en ucuz') || text.includes('daha ucuz olan')) {
     const sorted = [...recentProducts].sort(
       (a, b) => parsePriceValue(a.price) - parsePriceValue(b.price)
     );
     return sorted[0] || null;
   }
 
-  if (
-    text.includes('son ürün') ||
-    text.includes('az önceki ürün')
-  ) {
-    return recentProducts[recentProducts.length - 1] || null;
+  if (text.includes('en pahali') || text.includes('pahali olan')) {
+    const sorted = [...recentProducts].sort(
+      (a, b) => parsePriceValue(b.price) - parsePriceValue(a.price)
+    );
+    return sorted[0] || null;
   }
 
-  return null;
+  let bestMatch = null;
+  let bestScore = 0;
+
+  const userWords = text
+    .split(' ')
+    .filter((w) => w.length >= 3)
+    .filter(
+      (w) =>
+        ![
+          'urun',
+          'olan',
+          'bunu',
+          'sunu',
+          'bunun',
+          'sunum',
+          'detay',
+          'yorum',
+          'nasil',
+          'satici',
+          'magaza',
+          'farkli',
+          'goster',
+          'bul',
+          'ac',
+          'link',
+        ].includes(w)
+    );
+
+  for (const product of recentProducts) {
+    const productText = getProductSearchText(product);
+
+    let score = 0;
+
+    for (const word of userWords) {
+      if (productText.includes(word)) {
+        score += 2;
+      }
+    }
+
+    const productNameWords = normalizeRefText(product.name || '')
+      .split(' ')
+      .filter((w) => w.length >= 3);
+
+    for (const word of productNameWords) {
+      if (text.includes(word)) {
+        score += 3;
+      }
+    }
+
+    if (normalizeRefText(product.platform || '') &&
+        text.includes(normalizeRefText(product.platform || ''))) {
+      score += 2;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = product;
+    }
+  }
+
+  return bestScore >= 3 ? bestMatch : null;
 }
 
 function buildReferenceBasedReply(userMessage = '', referencedProduct = null) {
@@ -829,16 +912,50 @@ function buildReferenceBasedReply(userMessage = '', referencedProduct = null) {
 
 function extractRecentProducts(previousMessages = []) {
   const assistantMessages = previousMessages
-    .filter((m) => m.role === 'assistant' && Array.isArray(m.products) && m.products.length > 0)
-    .slice(-8);
+    .filter(
+      (m) =>
+        m.role === 'assistant' &&
+        Array.isArray(m.products) &&
+        m.products.length > 0
+    )
+    .slice(-10);
 
-  let recentProducts = [];
+  const enrichedProducts = [];
 
   for (const msg of assistantMessages) {
-    recentProducts = [...recentProducts, ...msg.products];
+    msg.products.forEach((product, index) => {
+      enrichedProducts.push({
+        ...product,
+
+        memory_index: index + 1,
+
+        memory_position_labels: [
+          `${index + 1}. ürün`,
+          `${index + 1}. urun`,
+          index === 0 ? 'ilk ürün' : '',
+          index === 0 ? 'ilk urun' : '',
+          index === 1 ? 'ikinci ürün' : '',
+          index === 1 ? 'ikinci urun' : '',
+          index === 2 ? 'üçüncü ürün' : '',
+          index === 2 ? 'ucuncu urun' : '',
+        ].filter(Boolean),
+
+        memory_keywords: [
+          product.name || '',
+          product.platform || '',
+          ...(String(product.name || '')
+            .toLowerCase()
+            .split(' ')
+            .filter((w) => w.length > 2)
+            .slice(0, 8)),
+        ],
+
+        memory_source_chat: msg._sourceChatId || null,
+      });
+    });
   }
 
-  return normalizeProducts(recentProducts).slice(0, 24);
+  return normalizeProducts(enrichedProducts).slice(-40);
 }
 
 function formatHistory(previousMessages = []) {
@@ -1188,6 +1305,37 @@ function detectActionCommand(userMessage = '') {
   return null;
 }
 
+function enrichProductsWithMemory(products = [], sourceChatId = null) {
+  return normalizeProducts(products).map((product, index) => ({
+    ...product,
+    memory_index: index + 1,
+    memory_position_labels: [
+      `${index + 1}. ürün`,
+      `${index + 1}. urun`,
+      index === 0 ? 'ilk ürün' : '',
+      index === 0 ? 'ilk urun' : '',
+      index === 1 ? 'ikinci ürün' : '',
+      index === 1 ? 'ikinci urun' : '',
+      index === 2 ? 'üçüncü ürün' : '',
+      index === 2 ? 'ucuncu urun' : '',
+      index === 3 ? 'dördüncü ürün' : '',
+      index === 3 ? 'dorduncu urun' : '',
+      index === 4 ? 'beşinci ürün' : '',
+      index === 4 ? 'besinci urun' : '',
+    ].filter(Boolean),
+    memory_keywords: [
+      product.name || '',
+      product.platform || '',
+      ...(String(product.name || '')
+        .toLowerCase()
+        .split(' ')
+        .filter((w) => w.length > 2)
+        .slice(0, 8)),
+    ],
+    memory_source_chat: sourceChatId,
+  }));
+}
+
 function extractLastProductBatch(previousMessages = []) {
   for (let i = previousMessages.length - 1; i >= 0; i--) {
     const msg = previousMessages[i];
@@ -1198,7 +1346,10 @@ function extractLastProductBatch(previousMessages = []) {
       Array.isArray(msg.products) &&
       msg.products.length > 0
     ) {
-      return normalizeProducts(msg.products);
+      return enrichProductsWithMemory(
+        msg.products,
+        msg._sourceChatId || null
+      );
     }
   }
 
@@ -1368,7 +1519,12 @@ function extractRecentProductsForComparison(previousMessages = [], limit = 6) {
       Array.isArray(msg.products) &&
       msg.products.length > 0
     ) {
-      for (const product of msg.products) {
+      const enriched = enrichProductsWithMemory(
+        msg.products,
+        msg._sourceChatId || null
+      );
+
+      for (const product of enriched) {
         if (!product || !product.name) continue;
         collected.push(product);
       }
@@ -2333,63 +2489,27 @@ function resolveSellerBaseProduct({
   selectedProduct,
   previousMessages,
 }) {
-  const normalize = (text) =>
-    String(text || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9ğüşöçı\s]/gi, '')
-      .trim();
-
-  const userText = normalize(userMessage);
-
-  // 1️⃣ selected product varsa direkt al
   if (selectedProduct && selectedProduct.name) {
     return selectedProduct;
   }
 
-  // 2️⃣ son ürün listesini al
   const lastBatch = extractLastProductBatch(previousMessages);
 
   if (!lastBatch || lastBatch.length === 0) {
     return null;
   }
 
-  // 3️⃣ akıllı eşleşme (EN KRİTİK)
-  let bestMatch = null;
-  let bestScore = 0;
+  const referencedProduct = resolveProductReference(userMessage, lastBatch);
 
-  for (const product of lastBatch) {
-    const name = normalize(product.name);
-
-    let score = 0;
-
-    const words = userText.split(' ');
-
-    for (const w of words) {
-      if (w.length < 3) continue;
-      if (name.includes(w)) score += 2;
-    }
-
-    // özel boostlar
-    if (userText.includes('playstation') && name.includes('playstation')) {
-      score += 5;
-    }
-
-    if (userText.includes('iphone') && name.includes('iphone')) {
-      score += 5;
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = product;
-    }
+  if (referencedProduct) {
+    return referencedProduct;
   }
 
-  if (bestMatch) return bestMatch;
+  if (lastBatch.length === 1) {
+    return lastBatch[0];
+  }
 
-  // 4️⃣ fallback
-  if (lastBatch.length === 1) return lastBatch[0];
-
-  return lastBatch[0] || null;
+  return null;
 }
 
 async function generateChatTitle(firstMessage) {
