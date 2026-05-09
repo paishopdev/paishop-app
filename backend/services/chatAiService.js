@@ -596,7 +596,8 @@ function expandPriceRange(min, max, level = 1) {
 
 function normalizeProducts(products) {
   return (products || []).map((item, index) => ({
-    index: index + 1,
+    index: item.index || index + 1,
+
     name: item.name || '',
     price: item.price || '',
     platform: item.platform || '',
@@ -605,6 +606,19 @@ function normalizeProducts(products) {
     rating: item.rating || null,
     reviews: item.reviews || null,
     short_reason: item.short_reason || item.shortReason || '',
+
+    // MEMORY FIELDS
+    memory_index: item.memory_index || index + 1,
+
+    memory_position_labels: Array.isArray(item.memory_position_labels)
+      ? item.memory_position_labels
+      : [],
+
+    memory_keywords: Array.isArray(item.memory_keywords)
+      ? item.memory_keywords
+      : [],
+
+    memory_source_chat: item.memory_source_chat || null,
   }));
 }
 
