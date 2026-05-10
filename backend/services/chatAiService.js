@@ -1316,6 +1316,16 @@ function detectActionCommand(userMessage = '') {
   if (text === 'benzer urunler') return 'find_similar';
   if (text === 'daha ucuz alternatifler') return 'find_cheaper';
 
+  if (
+    text.includes('aç') ||
+    text.includes('ac') ||
+    text.includes('detay') ||
+    text.includes('bilgi ver') ||
+    text.includes('hakkında bilgi')
+  ) {
+    return 'detail';
+  }
+
   return null;
 }
 
@@ -1856,9 +1866,14 @@ ${userMessage}
 
 
   const recentProducts = extractRecentProducts(previousMessages);
-  const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
-  const referencedProduct = resolveProductReference(userMessage, recentProducts);
-  const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
+const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
+const latestBatchProducts = extractLastProductBatch(previousMessages);
+
+const referencedProduct =
+  resolveProductReference(userMessage, latestBatchProducts) ||
+  resolveProductReference(userMessage, recentProducts);
+
+const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
   const isSellerCompare = isSellerComparisonRequest(userMessage);
   console.log("GLOBAL SELLER COMPARE:", isSellerCompare);
@@ -1939,11 +1954,59 @@ ${userMessage}
   }
 
   const actionCommand = detectActionCommand(userMessage);
-  const latestBatchProducts = extractLastProductBatch(previousMessages);
   const stableBatchProducts = filterProductsToSameCategory(
     latestBatchProducts.length > 0 ? latestBatchProducts : comparisonProducts,
     userMessage
   );
+
+  if (actionCommand === 'detail') {
+    const baseProduct =
+      referencedProduct ||
+      stableBatchProducts[0] ||
+      latestBatchProducts[0] ||
+      recentProducts[0] ||
+      null;
+  
+    if (!baseProduct) {
+      return {
+        assistantText: 'Hangi ürünün detayını açmamı istediğini anlayamadım. Üstteki ürünlerden birine dokunup Sor diyebilirsin.',
+        products: [],
+        actions: [],
+        comparison: null,
+        detailCard: null,
+        reviewCard: null,
+        sellerComparison: null,
+      };
+    }
+  
+    const detailResult = await generateSelectedProductDetail({
+      selectedProduct: baseProduct,
+      userMessage,
+      userProfile,
+    });
+  
+    return {
+      assistantText: `${baseProduct.name} için detayları hazırladım.`,
+      products: [],
+      actions: [],
+      comparison: null,
+      reviewCard: null,
+      detailCard: {
+        product: {
+          name: baseProduct?.name || '',
+          price: baseProduct?.price || '',
+          platform: baseProduct?.platform || '',
+          image: baseProduct?.image || '',
+          link: baseProduct?.link || '',
+        },
+        title: detailResult.title || 'Ürün detayı',
+        bullets: Array.isArray(detailResult.bullets)
+          ? detailResult.bullets.slice(0, 4)
+          : [],
+      },
+      sellerComparison: null,
+    };
+  }
 
   if (actionCommand === 'compare') {
     const compareBaseProducts =
@@ -2465,19 +2528,30 @@ async function buildSellerComparisonFromSearch({
 
   const sameProducts = normalized.filter((item) => {
     const itemKey = normalizeSellerKey(item.name);
-
+  
     if (!itemKey) return false;
-
+  
     if (itemKey === targetKey) return true;
     if (itemKey.includes(targetKey)) return true;
     if (targetKey.includes(itemKey)) return true;
-
+  
     const words = targetKey.split(' ').filter(Boolean);
-    const matchCount = words.filter((w) => itemKey.includes(w)).length;
-
-    return matchCount >= Math.max(1, Math.ceil(words.length * 0.5));
+    const itemWords = itemKey.split(' ').filter(Boolean);
+  
+    const matchCount = words.filter((w) => itemWords.some((iw) => iw.includes(w))).length;
+  
+    if (matchCount >= Math.max(1, Math.ceil(words.length * 0.5))) return true;
+  
+    if (
+      (targetKey.includes('playstation') || targetKey.includes('ps5')) &&
+      (itemKey.includes('playstation') || itemKey.includes('ps5') || itemKey.includes('ps 5'))
+    ) {
+      return true;
+    }
+  
+    return false;
   });
-
+  
   const finalList = sameProducts.length > 0 ? sameProducts : normalized;
 
   const grouped = groupProductsBySeller(finalList);
