@@ -777,6 +777,66 @@ function getProductSearchText(product = {}) {
   );
 }
 
+function hasExplicitProductReference(userMessage = '') {
+  const text = normalizeRefText(userMessage);
+
+  return (
+    /\d+\.?\s*urun/.test(text) ||
+    text.includes('ilk urun') ||
+    text.includes('birinci urun') ||
+    text.includes('ikinci urun') ||
+    text.includes('ucuncu urun') ||
+    text.includes('dorduncu urun') ||
+    text.includes('besinci urun') ||
+    text.includes('altinci urun') ||
+    text.includes('yedinci urun') ||
+    text.includes('sekizinci urun') ||
+    text.includes('dokuzuncu urun') ||
+    text.includes('onuncu urun') ||
+    text.includes('olan') ||
+    text.includes('en ucuz') ||
+    text.includes('en pahali') ||
+    text.includes('bu urun') ||
+    text.includes('bunun') ||
+    text.includes('su urun') ||
+    text.includes('sunun') ||
+    text.includes('o urun') ||
+    text.includes('az onceki') ||
+    text.includes('son urun')
+  );
+}
+
+function extractRequestedProductIndexes(userMessage = '') {
+  const text = normalizeRefText(userMessage);
+
+  const numericIndexes = [...text.matchAll(/(\d+)\.?\s*urun/g)]
+    .map((m) => parseInt(m[1], 10) - 1)
+    .filter((i) => i >= 0);
+
+  const wordIndexes = [
+    { words: ['ilk urun', 'birinci urun'], index: 0 },
+    { words: ['ikinci urun'], index: 1 },
+    { words: ['ucuncu urun'], index: 2 },
+    { words: ['dorduncu urun'], index: 3 },
+    { words: ['besinci urun'], index: 4 },
+    { words: ['altinci urun'], index: 5 },
+    { words: ['yedinci urun'], index: 6 },
+    { words: ['sekizinci urun'], index: 7 },
+    { words: ['dokuzuncu urun'], index: 8 },
+    { words: ['onuncu urun'], index: 9 },
+  ];
+
+  const indexes = [...numericIndexes];
+
+  for (const item of wordIndexes) {
+    if (item.words.some((w) => text.includes(w))) {
+      indexes.push(item.index);
+    }
+  }
+
+  return [...new Set(indexes)];
+}
+
 function resolveProductReference(userMessage = '', recentProducts = []) {
   const text = normalizeRefText(userMessage);
 
@@ -1869,11 +1929,18 @@ ${userMessage}
 const comparisonProducts = extractRecentProductsForComparison(previousMessages, 4);
 const latestBatchProducts = extractLastProductBatch(previousMessages);
 
-const referencedProduct =
-  resolveProductReference(userMessage, latestBatchProducts) ||
-  resolveProductReference(userMessage, recentProducts);
+const explicitReference = hasExplicitProductReference(userMessage);
 
-const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct);
+const referencedProduct = explicitReference
+  ? (
+      resolveProductReference(userMessage, latestBatchProducts) ||
+      resolveProductReference(userMessage, recentProducts)
+    )
+  : null;
+
+const referenceAction = explicitReference
+  ? buildReferenceBasedReply(userMessage, referencedProduct)
+  : null;
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
   const isSellerCompare = isSellerComparisonRequest(userMessage);
   console.log("GLOBAL SELLER COMPARE:", isSellerCompare);
@@ -2009,8 +2076,20 @@ const referenceAction = buildReferenceBasedReply(userMessage, referencedProduct)
   }
 
   if (actionCommand === 'compare') {
-    const compareBaseProducts =
-      stableBatchProducts.length >= 2 ? stableBatchProducts : comparisonProducts;
+
+    const requestedIndexes = extractRequestedProductIndexes(userMessage);
+
+let explicitCompareProducts = [];
+
+if (requestedIndexes.length >= 2 && latestBatchProducts.length > 0) {
+  explicitCompareProducts = requestedIndexes
+    .map((i) => latestBatchProducts[i])
+    .filter(Boolean);
+}
+const compareBaseProducts =
+explicitCompareProducts.length >= 2
+  ? explicitCompareProducts
+  : (stableBatchProducts.length >= 2 ? stableBatchProducts : comparisonProducts);
   
     if (!compareBaseProducts || compareBaseProducts.length < 2) {
       return {
