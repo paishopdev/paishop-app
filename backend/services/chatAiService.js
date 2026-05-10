@@ -1372,16 +1372,39 @@ function normalizeActionLabel(text = '') {
 function detectActionCommand(userMessage = '') {
   const text = normalizeActionLabel(userMessage);
 
-  if (text === 'karsilastir') return 'compare';
-  if (text === 'benzer urunler') return 'find_similar';
-  if (text === 'daha ucuz alternatifler') return 'find_cheaper';
+  if (
+    text === 'karsilastir' ||
+    text.includes('karsilastir') ||
+    text.includes('kiyasla') ||
+    text.includes('hangisi daha') ||
+    text.includes('hangisi mantikli') ||
+    text.includes('hangisi iyi')
+  ) {
+    return 'compare';
+  }
+
+  if (
+    text === 'benzer urunler' ||
+    text.includes('benzer')
+  ) {
+    return 'find_similar';
+  }
+
+  if (
+    text === 'daha ucuz alternatifler' ||
+    text.includes('daha ucuz') ||
+    text.includes('ucuz alternatif')
+  ) {
+    return 'find_cheaper';
+  }
 
   if (
     text.includes('aç') ||
     text.includes('ac') ||
     text.includes('detay') ||
     text.includes('bilgi ver') ||
-    text.includes('hakkında bilgi')
+    text.includes('hakkında bilgi') ||
+    text.includes('hakkinda bilgi')
   ) {
     return 'detail';
   }
@@ -2766,63 +2789,52 @@ function extractSellerCompareKey(product = {}) {
 }
 
 function groupProductsBySeller(products = []) {
-  const groups = {};
+  const normalized = normalizeProducts(products).filter(
+    (p) => p && p.name && p.platform
+  );
 
-  for (const product of normalizeProducts(products)) {
-    const key = extractSellerCompareKey(product);
-    if (!key) continue;
+  if (normalized.length === 0) return [];
 
-    if (!groups[key]) {
-      groups[key] = [];
-    }
+  const sortedByPrice = [...normalized].sort(
+    (a, b) => parsePriceValue(a.price) - parsePriceValue(b.price)
+  );
 
-    groups[key].push(product);
-  }
+  const cheapest = sortedByPrice[0] || null;
+  const highest = sortedByPrice[sortedByPrice.length - 1] || null;
 
-  return Object.values(groups)
-    .map((items) => {
-      const sortedByPrice = [...items].sort(
-        (a, b) => parsePriceValue(a.price) - parsePriceValue(b.price)
-      );
+  const minPrice = cheapest ? parsePriceValue(cheapest.price) : null;
+  const maxPrice = highest ? parsePriceValue(highest.price) : null;
 
-      const cheapest = sortedByPrice[0] || null;
-      const highest = sortedByPrice[sortedByPrice.length - 1] || null;
-
-      const minPrice = cheapest ? parsePriceValue(cheapest.price) : null;
-      const maxPrice = highest ? parsePriceValue(highest.price) : null;
-
-      return {
-        baseName: cheapest?.name || items[0]?.name || '',
-        image: cheapest?.image || items[0]?.image || '',
-        sellers: sortedByPrice.map((item) => ({
-          name: item.name || '',
-          price: item.price || '',
-          platform: item.platform || '',
-          image: item.image || '',
-          link: item.link || '',
-          rating: item.rating || null,
-          reviews: item.reviews || null,
-        })),
-        cheapestSeller: cheapest
-          ? {
-              price: cheapest.price || '',
-              platform: cheapest.platform || '',
-              link: cheapest.link || '',
-            }
+  return [
+    {
+      baseName: cheapest?.name || normalized[0]?.name || '',
+      image: cheapest?.image || normalized[0]?.image || '',
+      sellers: sortedByPrice.map((item) => ({
+        name: item.name || '',
+        price: item.price || '',
+        platform: item.platform || '',
+        image: item.image || '',
+        link: item.link || '',
+        rating: item.rating || null,
+        reviews: item.reviews || null,
+      })),
+      cheapestSeller: cheapest
+        ? {
+            price: cheapest.price || '',
+            platform: cheapest.platform || '',
+            link: cheapest.link || '',
+          }
+        : null,
+      priceSpread:
+        minPrice != null &&
+        maxPrice != null &&
+        minPrice !== Number.MAX_SAFE_INTEGER &&
+        maxPrice !== Number.MAX_SAFE_INTEGER
+          ? maxPrice - minPrice
           : null,
-        priceSpread:
-          minPrice != null &&
-          maxPrice != null &&
-          minPrice !== Number.MAX_SAFE_INTEGER &&
-          maxPrice !== Number.MAX_SAFE_INTEGER
-            ? maxPrice - minPrice
-            : null,
-      };
-    })
-    .filter((group) => group.sellers.length >= 2)
-    .sort((a, b) => b.sellers.length - a.sellers.length);
+    },
+  ];
 }
-
 
 
 function isSellerComparisonRequest(userMessage = '') {
