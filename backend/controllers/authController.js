@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const crypto = require('crypto');
 
 const register = async (req, res) => {
   try {
@@ -92,4 +93,69 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { register, login };
+const googleAuth = async (req, res) => {
+  try {
+    const {
+      email,
+      firstName,
+      lastName,
+      avatar,
+    } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: 'Google email gerekli',
+      });
+    }
+
+    let user = await User.findOne({
+      email: email.toLowerCase(),
+    });
+
+    // Kullanıcı yoksa oluştur
+    if (!user) {
+      user = await User.create({
+        firstName: firstName || 'Google',
+        lastName: lastName || 'User',
+        phone: 'google',
+        email: email.toLowerCase(),
+        password: crypto.randomBytes(32).toString('hex'),
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '7d',
+      }
+    );
+
+    return res.json({
+      message: 'Google giriş başarılı',
+      token,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        avatar: avatar || '',
+      },
+    });
+  } catch (error) {
+    console.error('Google auth error:', error);
+
+    return res.status(500).json({
+      error: 'Google giriş sırasında hata oluştu',
+    });
+  }
+};
+
+module.exports = {
+  register,
+  login,
+  googleAuth,
+};
