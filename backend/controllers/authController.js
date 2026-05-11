@@ -111,7 +111,7 @@ const googleAuth = async (req, res) => {
     let user = await User.findOne({
       email: email.toLowerCase(),
     });
-
+    
     // Kullanıcı yoksa oluştur
     if (!user) {
       user = await User.create({
@@ -120,6 +120,7 @@ const googleAuth = async (req, res) => {
         phone: 'google',
         email: email.toLowerCase(),
         password: crypto.randomBytes(32).toString('hex'),
+        onboardingCompleted: false,
       });
     }
 
