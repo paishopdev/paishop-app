@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "212299365387",
+    "project_id": "paishop-46226",
+    "storage_bucket": "paishop-46226.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212299365387:android:baf1c6092588b75485db0e",
+        "android_client_info": {
+          "package_name": "com.paishop.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "212299365387-e6dvv0c5q3chre8jtljn8535ek0rf5ha.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.paishop.app",
+            "certificate_hash": "4df64074fc7e2d2b356d242ba080735bd3f5e337"
+          }
+        },
+        {
+          "client_id": "212299365387-a6pa2kb4fdm3nnh9f4t0714bbcro5tvu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDvzcLOC7hTmYBYjnNDJxIpFT0XJ_Rp6zc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "212299365387-a6pa2kb4fdm3nnh9f4t0714bbcro5tvu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "212299365387-t190feog5s12prtbh9um8tmo5k2crhke.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.aiShoppingApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

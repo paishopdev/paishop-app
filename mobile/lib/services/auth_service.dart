@@ -89,6 +89,48 @@ class AuthService {
     }
   }
 
+  static Future<Map<String, dynamic>> googleLogin({
+  required String email,
+  required String firstName,
+  required String lastName,
+  String avatar = "",
+}) async {
+  try {
+    final response = await http
+        .post(
+          Uri.parse("$baseUrl/google"),
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({
+            "email": email,
+            "firstName": firstName,
+            "lastName": lastName,
+            "avatar": avatar,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      if (data["token"] != null) {
+        await saveAuthData(
+          token: data["token"],
+          userId: data["user"]["id"] ?? "",
+          firstName: data["user"]["firstName"] ?? "",
+          lastName: data["user"]["lastName"] ?? "",
+          email: data["user"]["email"] ?? "",
+        );
+      }
+    }
+
+    return data;
+  } catch (e) {
+    return {
+      "error": "Google ile giriş sırasında sunucuya bağlanılamadı."
+    };
+  }
+}
+
   static Future<void> saveAuthData({
     required String token,
     required String userId,

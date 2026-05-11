@@ -4,6 +4,8 @@ import 'register_screen.dart';
 import '../utils/responsive.dart';
 import '../utils/app_notice.dart';
 import '../main.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -85,6 +87,102 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+Future<void> signInWithGoogle() async {
+  try {
+    setState(() {
+      loading = true;
+    });
+
+    final GoogleSignInAccount? googleUser = await GoogleSignIn(
+      clientId:
+          '212299365387-mg3l2ghp915999vncur7rf5gdj6oed2f.apps.googleusercontent.com',
+    ).signIn();
+
+    if (googleUser == null) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+      });
+      return;
+    }
+
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final userCredential =
+        await FirebaseAuth.instance.signInWithCredential(credential);
+
+    final user = userCredential.user;
+
+    if (user == null || user.email == null) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+      });
+
+      showAppNotice(
+        context,
+        message: "Google hesabından e-posta alınamadı.",
+        isError: true,
+      );
+      return;
+    }
+
+    final displayNameParts = (user.displayName ?? '').trim().split(' ');
+    final firstName =
+        displayNameParts.isNotEmpty ? displayNameParts.first : 'Google';
+    final lastName = displayNameParts.length > 1
+        ? displayNameParts.skip(1).join(' ')
+        : 'User';
+
+    final result = await AuthService.googleLogin(
+      email: user.email!,
+      firstName: firstName,
+      lastName: lastName,
+      avatar: user.photoURL ?? '',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      loading = false;
+    });
+
+    if (result["token"] != null) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MyApp()),
+        (route) => false,
+      );
+    } else {
+      showAppNotice(
+        context,
+        message: result["error"] ?? "Google ile giriş başarısız",
+        isError: true,
+      );
+    }
+  } catch (e) {
+    debugPrint("GOOGLE LOGIN ERROR: $e");
+
+    if (!mounted) return;
+
+    setState(() {
+      loading = false;
+    });
+
+    showAppNotice(
+      context,
+      message: "Google giriş hatası: $e",
+      isError: true,
+    );
+  }
+}
+
   Widget buildInput({
     required TextEditingController controller,
     required String hintText,
@@ -132,13 +230,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Google ile giriş yakında eklenecek"),
-            ),
-          );
-        },
+        onPressed: signInWithGoogle,
         icon: const Icon(Icons.login_rounded),
         label: const Text("Google ile devam et"),
         style: OutlinedButton.styleFrom(
