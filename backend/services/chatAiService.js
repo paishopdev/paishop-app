@@ -1853,6 +1853,36 @@ async function generateChatReply({
   }
   console.log("NEW GENERATECHATREPLY ACTIVE:", userMessage);
 
+  const barcodeMatch = String(userMessage || '').match(/barkod:\s*([0-9]{6,20})/i);
+
+if (barcodeMatch) {
+  const barcode = barcodeMatch[1];
+
+  const rawResults = await searchProducts(`${barcode} ürün`, 'barcode');
+
+  const cleaned = scoreAndRankProducts(
+    rawResults,
+    barcode,
+    barcode
+  ).slice(0, 10);
+
+  const products = normalizeProducts(cleaned.length > 0 ? cleaned : rawResults);
+
+  return {
+    assistantText: products.length > 0
+      ? `${barcode} barkodu için bulduğum ürünleri listeledim.`
+      : `${barcode} barkodu ile ürün bulamadım. İstersen ürünün fotoğrafını çekerek görsel arama yapabilirsin.`,
+    products,
+    actions: products.length > 0
+      ? ['Karşılaştır', 'Daha ucuz alternatifler', 'Benzer ürünler']
+      : [],
+    comparison: null,
+    detailCard: null,
+    reviewCard: null,
+    sellerComparison: null,
+  };
+}
+
   if (isUserPreferenceQuestion(userMessage)) {
     return {
       assistantText: generatePreferenceInsightReply(previousMessages, favoriteProducts),

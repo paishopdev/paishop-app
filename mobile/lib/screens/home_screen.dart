@@ -21,6 +21,7 @@ import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'barcode_scanner_screen.dart';
 
 
 class ChatMessage {
@@ -3425,6 +3426,43 @@ SafeArea(
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
+
+Container(
+  decoration: BoxDecoration(
+    color: Colors.white,
+    shape: BoxShape.circle,
+    border: Border.all(color: Colors.grey.shade300),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.04),
+        blurRadius: 8,
+        offset: const Offset(0, 3),
+      ),
+    ],
+  ),
+  child: IconButton(
+    onPressed: loading
+        ? null
+        : () async {
+            final barcode = await Navigator.push<String>(
+  context,
+  MaterialPageRoute(
+    builder: (_) => const BarcodeScannerScreen(),
+  ),
+);
+
+if (barcode != null && barcode.trim().isNotEmpty) {
+  controller.text = "Barkod: ${barcode.trim()} ürününü bul";
+  await search();
+}
+          },
+    icon: Icon(
+      Icons.qr_code_scanner_rounded,
+      color: Colors.grey.shade700,
+    ),
+  ),
+),
                     ],
                   ),
           ),
