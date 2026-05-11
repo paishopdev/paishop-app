@@ -1007,6 +1007,8 @@ setState(() {
         .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
         .toList();
 
+        final isBarcodeSearch = query.toLowerCase().contains("barkod:");
+
     final actions = result["actions"] is List
         ? List<String>.from(result["actions"])
         : <String>[];
@@ -1028,7 +1030,7 @@ setState(() {
         : null;
 
     if (chatIdForRequest == currentChatId) {
-      await addAssistantMessageWithTyping(
+     await addAssistantMessageWithTyping(
   text: rawAssistantText,
   products: products,
   actions: actions,
@@ -1038,7 +1040,35 @@ setState(() {
   sellerComparison: sellerComparison,
 );
 
-      scrollToAssistantStart();
+scrollToAssistantStart();
+
+if (isBarcodeSearch && products.isEmpty && mounted) {
+  final shouldUseCamera = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text("Ürün bulunamadı"),
+        content: const Text(
+          "Bu barkodla net ürün bulamadım. İstersen ürünün fotoğrafını çekerek görsel arama yapabilirsin.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hayır"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Kamera ile ara"),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (shouldUseCamera == true) {
+    showImageSourcePicker();
+  }
+}
     }
 
     await loadChatHistory();
@@ -3446,16 +3476,16 @@ Container(
         ? null
         : () async {
             final barcode = await Navigator.push<String>(
-  context,
-  MaterialPageRoute(
-    builder: (_) => const BarcodeScannerScreen(),
-  ),
-);
+              context,
+              MaterialPageRoute(
+                builder: (_) => const BarcodeScannerScreen(),
+              ),
+            );
 
-if (barcode != null && barcode.trim().isNotEmpty) {
-  controller.text = "Barkod: ${barcode.trim()} ürününü bul";
-  await search();
-}
+            if (barcode != null && barcode.trim().isNotEmpty) {
+              controller.text = "Barkod: ${barcode.trim()} ürününü bul";
+              await search();
+            }
           },
     icon: Icon(
       Icons.qr_code_scanner_rounded,

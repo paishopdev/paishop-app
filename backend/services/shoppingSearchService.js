@@ -84,43 +84,140 @@ async function enrichMissingImages(products = []) {
   return output;
 }
 
-async function searchProducts(query, type = 'search') {
-  const cleanQuery = String(query || '').trim().toLowerCase();
+function normalizeBarcode(value = '') {
+  return String(value || '').replace(/[^\d]/g, '');
+}
 
-  if (!cleanQuery) return [];
+function isValidBarcode(value = '') {
+  const barcode = normalizeBarcode(value);
 
-  console.log("SEARCH START:", cleanQuery, "TYPE:", type);
+  return (
+    barcode.length === 8 ||
+    barcode.length === 12 ||
+    barcode.length === 13 ||
+    barcode.length === 14
+  );
+}
 
-  // 🔥 Barkod lookup sistemi
-const barcodeMatch = cleanQuery.match(/\b\d{8,14}\b/);
+async function resolveBarcodeQuery(cleanQuery) {
+  const barcode = normalizeBarcode(cleanQuery);
 
-if (barcodeMatch) {
-  const barcode = barcodeMatch[0];
+  if (!isValidBarcode(barcode)) {
+    console.log('INVALID BARCODE:', cleanQuery);
+    return {
+      ok: false,
+      query: '',
+      barcode,
+    };
+  }
 
   try {
-    console.log("BARCODE DETECTED:", barcode);
+    console.log('BARCODE DETECTED:', barcode);
 
     const foodResponse = await axios.get(
       `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`,
-      {
-        timeout: 8000,
-      }
+      { timeout: 8000 }
     );
 
+    const product = foodResponse.data?.product || {};
+
     const productName =
-      foodResponse.data?.product?.product_name ||
-      foodResponse.data?.product?.generic_name ||
+      product.product_name_tr ||
+      product.product_name ||
+      product.generic_name_tr ||
+      product.generic_name ||
       '';
 
-    if (productName && productName.trim().length > 2) {
-      console.log("OPEN FOOD FACTS PRODUCT:", productName);
+    const brand =
+      product.brands ||
+      product.brands_tags?.[0] ||
+      '';
 
-      query = productName;
+    const quantity =
+      product.quantity ||
+      '';
+
+    const composedName = [brand, productName, quantity]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (composedName.length > 2) {
+      console.log('OPEN FOOD FACTS PRODUCT:', composedName);
+      return {
+        ok: true,
+        query: composedName.toLowerCase(),
+        barcode,
+      };
     }
   } catch (err) {
-    console.log("OPEN FOOD FACTS FAILED");
+    console.log('OPEN FOOD FACTS FAILED:', err.message);
   }
+
+  return {
+    ok: true,
+    query: `${barcode} ürün`,
+    barcode,
+  };
 }
+
+function filterBarcodeResults(results = [], cleanQuery = '') {
+  if (!Array.isArray(results) || results.length === 0) return results;
+
+  const queryWords = cleanQuery
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.trim())
+    .filter((w) => w.length >= 3)
+    .filter(
+      (w) =>
+        ![
+          'urun',
+          'ürün',
+          'adet',
+          'gram',
+          'gr',
+          'ml',
+          'the',
+          'and',
+          'ile',
+          'icin',
+          'için',
+        ].includes(w)
+    );
+
+  if (queryWords.length === 0) return results;
+
+  const filtered = results.filter((item) => {
+    const name = String(item.name || '').toLowerCase();
+    const platform = String(item.platform || '').toLowerCase();
+    const haystack = `${name} ${platform}`;
+
+    const matchCount = queryWords.filter((w) => haystack.includes(w)).length;
+
+    return matchCount >= Math.min(2, queryWords.length);
+  });
+
+  return filtered.length > 0 ? filtered : results;
+}
+
+async function searchProducts(query, type = 'search') {
+  let cleanQuery = String(query || '').trim().toLowerCase();
+
+  if (!cleanQuery) return [];
+
+  console.log('SEARCH START:', cleanQuery, 'TYPE:', type);
+
+  if (type === 'barcode') {
+    const resolved = await resolveBarcodeQuery(cleanQuery);
+
+    if (!resolved.ok) {
+      return [];
+    }
+
+    cleanQuery = resolved.query;
+  }
 
   const cache = await SearchCache.findOne({
     query: cleanQuery,
@@ -128,30 +225,38 @@ if (barcodeMatch) {
   });
 
   if (cache) {
-    console.log("CACHE HIT:", cleanQuery);
+    console.log('CACHE HIT:', cleanQuery);
     return cache.data;
   }
 
-  console.log("CACHE MISS:", cleanQuery);
+  console.log('CACHE MISS:', cleanQuery);
 
   let results = [];
 
   try {
-    console.log("TRY SERPER...");
+    console.log('TRY SERPER...');
     results = await searchSerperShopping(cleanQuery);
-    console.log("SERPER RESULT COUNT:", Array.isArray(results) ? results.length : 0);
+    console.log('SERPER RESULT COUNT:', Array.isArray(results) ? results.length : 0);
   } catch (err) {
-    logProviderError("SERPER", err);
+    logProviderError('SERPER', err);
+  }
+
+  if (type === 'barcode' && results && results.length > 0) {
+    results = filterBarcodeResults(results, cleanQuery);
   }
 
   if (!results || results.length === 0) {
     try {
-      console.log("TRY SERPAPI...");
+      console.log('TRY SERPAPI...');
       results = await searchGoogleShopping(cleanQuery);
-      console.log("SERPAPI RESULT COUNT:", Array.isArray(results) ? results.length : 0);
+      console.log('SERPAPI RESULT COUNT:', Array.isArray(results) ? results.length : 0);
     } catch (err) {
-      logProviderError("SERPAPI", err);
+      logProviderError('SERPAPI', err);
     }
+  }
+
+  if (type === 'barcode' && results && results.length > 0) {
+    results = filterBarcodeResults(results, cleanQuery);
   }
 
   if (results && results.length > 0) {
@@ -172,7 +277,7 @@ if (barcodeMatch) {
       { upsert: true, returnDocument: 'after' }
     );
 
-    console.log("CACHE SAVED:", cleanQuery, "MIN:", expireMinutes);
+    console.log('CACHE SAVED:', cleanQuery, 'MIN:', expireMinutes);
   }
 
   return results || [];
