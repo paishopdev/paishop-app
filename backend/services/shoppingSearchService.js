@@ -1,6 +1,7 @@
 const SearchCache = require('../models/SearchCache');
 const { searchSerperShopping, searchSerperImages } = require('./serperShoppingService');
 const { searchGoogleShopping } = require('./googleShoppingService');
+const axios = require('axios');
 
 function getCacheMinutes(type) {
   if (type === 'seller') return 20;
@@ -89,6 +90,37 @@ async function searchProducts(query, type = 'search') {
   if (!cleanQuery) return [];
 
   console.log("SEARCH START:", cleanQuery, "TYPE:", type);
+
+  // 🔥 Barkod lookup sistemi
+const barcodeMatch = cleanQuery.match(/\b\d{8,14}\b/);
+
+if (barcodeMatch) {
+  const barcode = barcodeMatch[0];
+
+  try {
+    console.log("BARCODE DETECTED:", barcode);
+
+    const foodResponse = await axios.get(
+      `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`,
+      {
+        timeout: 8000,
+      }
+    );
+
+    const productName =
+      foodResponse.data?.product?.product_name ||
+      foodResponse.data?.product?.generic_name ||
+      '';
+
+    if (productName && productName.trim().length > 2) {
+      console.log("OPEN FOOD FACTS PRODUCT:", productName);
+
+      query = productName;
+    }
+  } catch (err) {
+    console.log("OPEN FOOD FACTS FAILED");
+  }
+}
 
   const cache = await SearchCache.findOne({
     query: cleanQuery,
