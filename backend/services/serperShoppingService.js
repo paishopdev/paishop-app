@@ -114,8 +114,6 @@ async function searchSerperShopping(query) {
     response.data.results ||
     [];
 
-    console.log('FIRST SERPER RAW:', JSON.stringify(results[0], null, 2));
-
     return results.slice(0, 10).map((item) => ({
       name: item.title || item.name || 'Unknown product',
       price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
@@ -123,7 +121,7 @@ async function searchSerperShopping(query) {
       image: extractSerperImage(item),
       link: item.link || item.product_link || item.url || '',
       rating: parseRating(item.rating),
-      reviews: parseSerperReviewCount(item),
+      reviews: parseReviewCount(item.ratingCount),
       short_reason: '',
     }));
 }
