@@ -108,7 +108,19 @@ async function searchSerperShopping(query) {
     image: extractSerperImage(item),
     link: item.link || item.product_link || item.url || '',
     rating: item.rating || null,
-    reviews: null,
+    reviews:
+  parseSerperReviewCount(item) ||
+  parseReviewCount(
+    item.reviews ||
+    item.review_count ||
+    item.reviewsCount ||
+    item.reviewCount ||
+    item.ratingCount ||
+    item.rating_count ||
+    item.numberOfReviews ||
+    item.num_reviews ||
+    ''
+  ),
     short_reason: '',
   }));
 }

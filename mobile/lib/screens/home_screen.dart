@@ -3042,6 +3042,142 @@ Widget buildDrawer() {
   );
 }
 
+void showAttachmentActions() {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      return SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 5,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              _actionSheetItem(
+                icon: Icons.camera_alt_outlined,
+                title: "Fotoğrafla ara",
+                subtitle: "Ürünün fotoğrafını çek veya galeriden seç",
+                onTap: () {
+                  Navigator.pop(context);
+                  showImageSourcePicker();
+                },
+              ),
+              const SizedBox(height: 10),
+              _actionSheetItem(
+                icon: Icons.qr_code_scanner_rounded,
+                title: "Barkod tara",
+                subtitle: "Ürünü barkodundan hızlıca bul",
+                onTap: () async {
+                  Navigator.pop(context);
+
+                  final barcode = await Navigator.push<String>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const BarcodeScannerScreen(),
+                    ),
+                  );
+
+                  if (barcode != null && barcode.trim().isNotEmpty) {
+                    controller.text = "Barkod: ${barcode.trim()} ürününü bul";
+                    await search();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _actionSheetItem({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required VoidCallback onTap,
+}) {
+  return InkWell(
+    borderRadius: BorderRadius.circular(18),
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: primaryColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade600,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: Colors.grey.shade500,
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -3396,105 +3532,63 @@ SafeArea(
 ),
                   )
                 : Row(
-                    key: const ValueKey('voice_camera_actions'),
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        decoration: BoxDecoration(
-                          color: isListening ? Colors.redAccent : Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isListening
-                                ? Colors.redAccent
-                                : Colors.grey.shade300,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          onPressed: () {
-                            if (isListening) {
-                              stopListening();
-                            } else {
-                              startListening();
-                            }
-                          },
-                          icon: Icon(
-                            isListening
-                                ? Icons.mic_rounded
-                                : Icons.mic_none_rounded,
-                            color: isListening
-                                ? Colors.white
-                                : Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.grey.shade300),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          onPressed: loading ? null : showImageSourcePicker,
-                          icon: Icon(
-                            Icons.camera_alt_outlined,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-Container(
-  decoration: BoxDecoration(
-    color: Colors.white,
-    shape: BoxShape.circle,
-    border: Border.all(color: Colors.grey.shade300),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.04),
-        blurRadius: 8,
-        offset: const Offset(0, 3),
+  key: const ValueKey('voice_camera_actions'),
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    Container(
+      margin: const EdgeInsets.only(right: 8),
+      decoration: BoxDecoration(
+        color: isListening ? Colors.redAccent : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isListening ? Colors.redAccent : Colors.grey.shade300,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-    ],
-  ),
-  child: IconButton(
-    onPressed: loading
-        ? null
-        : () async {
-            final barcode = await Navigator.push<String>(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const BarcodeScannerScreen(),
-              ),
-            );
-
-            if (barcode != null && barcode.trim().isNotEmpty) {
-              controller.text = "Barkod: ${barcode.trim()} ürününü bul";
-              await search();
-            }
-          },
-    icon: Icon(
-      Icons.qr_code_scanner_rounded,
-      color: Colors.grey.shade700,
+      child: IconButton(
+        onPressed: loading
+            ? null
+            : () {
+                if (isListening) {
+                  stopListening();
+                } else {
+                  startListening();
+                }
+              },
+        icon: Icon(
+          isListening ? Icons.mic_rounded : Icons.mic_none_rounded,
+          color: isListening ? Colors.white : Colors.grey.shade700,
+        ),
+      ),
     ),
-  ),
+    Container(
+      decoration: BoxDecoration(
+        color: primaryColor,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.22),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: IconButton(
+        onPressed: loading ? null : showAttachmentActions,
+        icon: const Icon(
+          Icons.add_rounded,
+          color: Colors.white,
+        ),
+      ),
+    ),
+  ],
 ),
-                    ],
-                  ),
           ),
         ],
       ),
