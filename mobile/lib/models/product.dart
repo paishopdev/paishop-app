@@ -28,6 +28,26 @@ int? parseReviewCount(dynamic value) {
   return int.tryParse(cleaned);
 }
 
+double? parseRatingValue(dynamic value) {
+  if (value == null) return null;
+
+  if (value is int) {
+    return value > 0 && value <= 5 ? value.toDouble() : null;
+  }
+
+  if (value is double) {
+    return value > 0 && value <= 5 ? value : null;
+  }
+
+  final text = value.toString().replaceAll(',', '.').trim();
+  final match = RegExp(r'([0-5](\.\d+)?)').firstMatch(text);
+
+  if (match == null) return null;
+
+  final parsed = double.tryParse(match.group(1)!);
+  return parsed != null && parsed > 0 && parsed <= 5 ? parsed : null;
+}
+
 class Product {
   final int index;
   final String name;
@@ -59,8 +79,14 @@ class Product {
       platform: json['platform'] ?? '',
       image: json['image'] ?? '',
       link: json['link'] ?? '',
-      rating: json['rating']?.toDouble(),
-      reviews: parseReviewCount(json['reviews']),
+      rating: parseRatingValue(json['rating']),
+reviews: parseReviewCount(
+  json['reviews'] ??
+      json['ratingCount'] ??
+      json['rating_count'] ??
+      json['reviewCount'] ??
+      json['reviewsCount'],
+),
       shortReason: json['short_reason'] ?? '',
     );
   }

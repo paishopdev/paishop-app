@@ -280,12 +280,14 @@ class ProductCard extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    product.rating!.toString(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
-                                  ),
+  product.rating! % 1 == 0
+      ? product.rating!.toStringAsFixed(0)
+      : product.rating!.toStringAsFixed(1),
+  style: const TextStyle(
+    fontWeight: FontWeight.w700,
+    fontSize: 12,
+  ),
+),
                                 ],
                               ),
                             ),
