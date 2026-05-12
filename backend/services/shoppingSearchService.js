@@ -202,6 +202,41 @@ function filterBarcodeResults(results = [], cleanQuery = '') {
   return filtered.length > 0 ? filtered : results;
 }
 
+function normalizeMatchText(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[^\wğüşöçıİĞÜŞÖÇ\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchScore(a = '', b = '') {
+  const aWords = normalizeMatchText(a).split(' ').filter((w) => w.length >= 3);
+  const bText = normalizeMatchText(b);
+
+  if (aWords.length === 0 || !bText) return 0;
+
+  return aWords.filter((w) => bText.includes(w)).length / aWords.length;
+}
+
+function enrichRatingsFromSerpApi(baseProducts = [], serpProducts = []) {
+  return baseProducts.map((product) => {
+    const match = serpProducts.find((item) => {
+      const score1 = matchScore(product.name, item.name);
+      const score2 = matchScore(item.name, product.name);
+      return Math.max(score1, score2) >= 0.55;
+    });
+
+    if (!match) return product;
+
+    return {
+      ...product,
+      rating: product.rating || match.rating || null,
+      reviews: product.reviews || match.reviews || null,
+    };
+  });
+}
+
 async function searchProducts(query, type = 'search') {
   let cleanQuery = String(query || '').trim().toLowerCase();
 
@@ -244,6 +279,25 @@ async function searchProducts(query, type = 'search') {
   if (type === 'barcode' && results && results.length > 0) {
     results = filterBarcodeResults(results, cleanQuery);
   }
+
+  const needsRatingEnrichment =
+  Array.isArray(results) &&
+  results.length > 0 &&
+  results.some((p) => !p.rating || !p.reviews || Number.isInteger(p.rating));
+
+if (needsRatingEnrichment && type !== 'seller' && type !== 'image') {
+  try {
+    console.log('TRY SERPAPI ENRICH RATINGS...');
+    const serpResults = await searchGoogleShopping(cleanQuery);
+
+    if (Array.isArray(serpResults) && serpResults.length > 0) {
+      results = enrichRatingsFromSerpApi(results, serpResults);
+      console.log('SERPAPI ENRICH DONE');
+    }
+  } catch (err) {
+    logProviderError('SERPAPI ENRICH', err);
+  }
+}
 
   if (!results || results.length === 0) {
     try {
