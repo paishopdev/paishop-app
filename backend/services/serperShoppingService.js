@@ -46,6 +46,24 @@ function parseReviewCount(value) {
   return cleaned ? parseInt(cleaned, 10) : null;
 }
 
+function parseRating(value) {
+  if (value == null) return null;
+
+  if (typeof value === 'number') {
+    return value > 0 && value <= 5 ? value : null;
+  }
+
+  const text = String(value).toLowerCase().trim();
+
+  // "3.7", "3,7", "3.7 out of 5" gibi durumlarda ilk decimal değeri al
+  const match = text.match(/([0-5])([.,]\d)?/);
+  if (!match) return null;
+
+  const rating = parseFloat(match[0].replace(',', '.'));
+
+  return rating > 0 && rating <= 5 ? rating : null;
+}
+
 function parseSerperReviewCount(item = {}) {
   const raw =
     item.reviews ||
@@ -96,33 +114,18 @@ async function searchSerperShopping(query) {
     response.data.results ||
     [];
 
-  console.log(
-    'SERPER FIRST RESULT:',
-    results[0]?.title || results[0]?.name || 'no result'
-  );
+    console.log('FIRST SERPER RAW:', JSON.stringify(results[0], null, 2));
 
-  return results.slice(0, 10).map((item) => ({
-    name: item.title || item.name || 'Unknown product',
-    price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
-    platform: item.source || item.seller || item.merchant || 'Unknown store',
-    image: extractSerperImage(item),
-    link: item.link || item.product_link || item.url || '',
-    rating: item.rating || null,
-    reviews:
-  parseSerperReviewCount(item) ||
-  parseReviewCount(
-    item.reviews ||
-    item.review_count ||
-    item.reviewsCount ||
-    item.reviewCount ||
-    item.ratingCount ||
-    item.rating_count ||
-    item.numberOfReviews ||
-    item.num_reviews ||
-    ''
-  ),
-    short_reason: '',
-  }));
+    return results.slice(0, 10).map((item) => ({
+      name: item.title || item.name || 'Unknown product',
+      price: item.price || item.extracted_price?.toString() || 'Fiyat yok',
+      platform: item.source || item.seller || item.merchant || 'Unknown store',
+      image: extractSerperImage(item),
+      link: item.link || item.product_link || item.url || '',
+      rating: parseRating(item.rating),
+      reviews: parseSerperReviewCount(item),
+      short_reason: '',
+    }));
 }
 
 async function searchSerperImages(query) {
