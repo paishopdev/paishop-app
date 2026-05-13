@@ -1272,6 +1272,18 @@ async function generateAnswer({
   const recentProducts = extractRecentProducts(previousMessages);
   const normalizedSearchedProducts = normalizeProducts(searchedProducts);
 
+  const memoryText = userMemory
+  ? `
+Uzun dönem kullanıcı alışveriş hafızası:
+- Favori markalar: ${(userMemory.favoriteBrands || []).join(', ') || 'Yok'}
+- Favori kategoriler: ${(userMemory.favoriteCategories || []).join(', ') || 'Yok'}
+- Renk tercihleri: ${(userMemory.preferredColors || []).join(', ') || 'Yok'}
+- Özellik tercihleri: ${(userMemory.preferredFeatures || []).join(', ') || 'Yok'}
+- Bütçe eğilimi: ${userMemory.budgetRange || 'Yok'}
+- Alışveriş tarzı: ${userMemory.shoppingStyle || 'Yok'}
+`
+  : '';
+
   const answerPrompt = `
 Sen Shopi’sin. Kullanıcılara ürün bulma, karşılaştırma ve alışveriş kararlarında yardımcı olan akıllı ve samimi bir asistansın.
 Türkçe cevap ver.
@@ -1375,18 +1387,6 @@ ${userMessage}
     messages: [{ role: 'user', content: answerPrompt }],
     temperature: 0.7,
   });
-
-  const memoryText = userMemory
-  ? `
-Uzun dönem kullanıcı alışveriş hafızası:
-- Favori markalar: ${(userMemory.favoriteBrands || []).join(', ') || 'Yok'}
-- Favori kategoriler: ${(userMemory.favoriteCategories || []).join(', ') || 'Yok'}
-- Renk tercihleri: ${(userMemory.preferredColors || []).join(', ') || 'Yok'}
-- Özellik tercihleri: ${(userMemory.preferredFeatures || []).join(', ') || 'Yok'}
-- Bütçe eğilimi: ${userMemory.budgetRange || 'Yok'}
-- Alışveriş tarzı: ${userMemory.shoppingStyle || 'Yok'}
-`
-  : '';
 
   const text = response.choices[0].message.content;
   const parsed = safeParseJson(text);
