@@ -2227,24 +2227,52 @@ Widget buildReviewCard(Map<String, dynamic> reviewCard) {
       ? Map<String, dynamic>.from(reviewCard["product"])
       : <String, dynamic>{};
 
+  final title = (reviewCard["title"] ?? "Yorum analizi").toString();
+
   final items = reviewCard["items"] is List
       ? List<String>.from(reviewCard["items"])
       : <String>[];
 
-      final imageUrl = (product["image"] ?? "").toString().trim();
+  final imageUrl = (product["image"] ?? "").toString().trim();
+
+  IconData iconForItem(String item) {
+    final lower = item.toLowerCase();
+
+    if (lower.contains("beğen") || lower.contains("begen") || lower.contains("artı")) {
+      return Icons.thumb_up_alt_outlined;
+    }
+
+    if (lower.contains("şikayet") || lower.contains("sikayet") || lower.contains("eksi")) {
+      return Icons.warning_amber_rounded;
+    }
+
+    if (lower.contains("kronik") || lower.contains("sorun")) {
+      return Icons.report_problem_outlined;
+    }
+
+    if (lower.contains("kimler") || lower.contains("uygun")) {
+      return Icons.person_search_rounded;
+    }
+
+    if (lower.contains("fiyat") || lower.contains("performans")) {
+      return Icons.price_check_rounded;
+    }
+
+    return Icons.reviews_outlined;
+  }
 
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    padding: const EdgeInsets.all(14),
+    padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.grey.shade200),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: const Color(0xFF6C63FF).withOpacity(0.12)),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
+          color: const Color(0xFF6C63FF).withOpacity(0.08),
+          blurRadius: 22,
+          offset: const Offset(0, 8),
         ),
       ],
     ),
@@ -2252,30 +2280,59 @@ Widget buildReviewCard(Map<String, dynamic> reviewCard) {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C63FF).withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.rate_review_outlined,
+                color: Color(0xFF6C63FF),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-  borderRadius: BorderRadius.circular(14),
-  child: imageUrl.isNotEmpty
-      ? Image.network(
-          proxyImageUrl(imageUrl),
-          width: 64,
-          height: 64,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            width: 64,
-            height: 64,
-            color: Colors.grey.shade100,
-            child: const Icon(Icons.image_not_supported_outlined),
-          ),
-        )
-      : Container(
-          width: 64,
-          height: 64,
-          color: Colors.grey.shade100,
-          child: const Icon(Icons.shopping_bag_outlined),
-        ),
-),
+              borderRadius: BorderRadius.circular(16),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      proxyImageUrl(imageUrl),
+                      width: 68,
+                      height: 68,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 68,
+                        height: 68,
+                        color: Colors.grey.shade100,
+                        child: const Icon(Icons.image_not_supported_outlined),
+                      ),
+                    )
+                  : Container(
+                      width: 68,
+                      height: 68,
+                      color: Colors.grey.shade100,
+                      child: const Icon(Icons.shopping_bag_outlined),
+                    ),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -2286,8 +2343,10 @@ Widget buildReviewCard(Map<String, dynamic> reviewCard) {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                      height: 1.3,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -2296,42 +2355,64 @@ Widget buildReviewCard(Map<String, dynamic> reviewCard) {
                       product["price"].toString(),
                       style: const TextStyle(
                         color: Color(0xFF6C63FF),
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                         fontSize: 14,
                       ),
                     ),
+                  if ((product["platform"] ?? "").toString().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      product["platform"].toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ],
         ),
+
         if (items.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          ...items.map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+          const SizedBox(height: 16),
+          ...items.map((item) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    size: 16,
-                    color: Color(0xFF6C63FF),
+                  Icon(
+                    iconForItem(item),
+                    size: 18,
+                    color: const Color(0xFF6C63FF),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 9),
                   Expanded(
                     child: Text(
                       item,
                       style: const TextStyle(
                         fontSize: 13,
-                        height: 1.4,
+                        height: 1.42,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
+            );
+          }).toList(),
         ],
       ],
     ),
