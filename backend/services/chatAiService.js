@@ -1909,6 +1909,8 @@ async function generateChatReply({
   }
   console.log("NEW GENERATECHATREPLY ACTIVE:", userMessage);
 
+  const actionCommand = detectActionCommand(userMessage);
+
   const barcodeMatch = String(userMessage || '').match(/barkod:\s*([0-9]{6,20})/i);
 
 if (barcodeMatch) {
@@ -2129,7 +2131,6 @@ const referenceAction = explicitReference
     };
   }
 
-  const actionCommand = detectActionCommand(userMessage);
   const stableBatchProducts = filterProductsToSameCategory(
     latestBatchProducts.length > 0 ? latestBatchProducts : comparisonProducts,
     userMessage
