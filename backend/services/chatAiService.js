@@ -1403,41 +1403,63 @@ function normalizeActionLabel(text = '') {
 }
 
 function detectActionCommand(userMessage = '') {
-  const text = normalizeActionLabel(userMessage);
+  const raw = String(userMessage || '').toLowerCase();
+
+  const text = raw
+    .replace(/ı/g, 'i')
+    .replace(/İ/g, 'i')
+    .replace(/ş/g, 's')
+    .replace(/Ş/g, 's')
+    .replace(/ğ/g, 'g')
+    .replace(/Ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/Ü/g, 'u')
+    .replace(/ö/g, 'o')
+    .replace(/Ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'c')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   if (
-    text === 'karsilastir' ||
     text.includes('karsilastir') ||
+    text.includes('karsilastirma') ||
     text.includes('kiyasla') ||
+    text.includes('karsilastirir misin') ||
     text.includes('hangisi daha') ||
     text.includes('hangisi mantikli') ||
-    text.includes('hangisi iyi')
+    text.includes('hangisi iyi') ||
+    text.includes('hangisini almaliyim') ||
+    text.includes('bunlari karsilastir') ||
+    text.includes('urunleri karsilastir')
   ) {
     return 'compare';
   }
 
   if (
-    text === 'benzer urunler' ||
-    text.includes('benzer')
+    text.includes('benzer') ||
+    text.includes('alternatif') ||
+    text.includes('buna benzeyen')
   ) {
     return 'find_similar';
   }
 
   if (
-    text === 'daha ucuz alternatifler' ||
     text.includes('daha ucuz') ||
-    text.includes('ucuz alternatif')
+    text.includes('ucuz alternatif') ||
+    text.includes('uygun fiyatli') ||
+    text.includes('daha uygun')
   ) {
     return 'find_cheaper';
   }
 
   if (
-    text.includes('aç') ||
     text.includes('ac') ||
     text.includes('detay') ||
     text.includes('bilgi ver') ||
-    text.includes('hakkında bilgi') ||
-    text.includes('hakkinda bilgi')
+    text.includes('hakkinda bilgi') ||
+    text.includes('incele')
   ) {
     return 'detail';
   }
@@ -1898,7 +1920,7 @@ if (barcodeMatch) {
     rawResults,
     barcode,
     barcode
-  ).slice(0, 10);
+  ).slice(0, 6);
 
   const products = normalizeProducts(cleaned.length > 0 ? cleaned : rawResults);
 
@@ -1977,8 +1999,8 @@ ${userMessage}
 
         searchedProducts =
           filteredResults.length > 0
-            ? filteredResults.slice(0, 10)
-            : scoreAndRankProducts(rawResults, userMessage, planner.search_query).slice(0, 10);
+            ? filteredResults.slice(0, 6)
+            : scoreAndRankProducts(rawResults, userMessage, planner.search_query).slice(0, 6);
       }
 
       const answer = await generateAnswer({
@@ -2202,7 +2224,7 @@ explicitCompareProducts.length >= 2
         rawCompareResults,
         compareQuery,
         compareQuery
-      ).slice(0, 10);
+      ).slice(0, 6);
     }
   
     const enrichedCompareProducts = enrichProductsWithSource(
@@ -2541,8 +2563,8 @@ const planner = await generatePlanner({
 
     searchedProducts =
       filteredResults.length > 0
-        ? filteredResults.slice(0, 10)
-        : scoreAndRankProducts(rawResults, userMessage, planner.search_query).slice(0, 10);
+        ? filteredResults.slice(0, 6)
+        : scoreAndRankProducts(rawResults, userMessage, planner.search_query).slice(0, 6);
   }
 
   if (referenceAction && referencedProduct) {
