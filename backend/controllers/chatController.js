@@ -247,6 +247,7 @@ let aiResult;
 
 try {
   aiResult = await generateChatReply({
+    userId: user._id,
     userMessage: userText,
     previousMessages: memoryMessages,
     selectedProduct,

@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const { searchProducts } = require('./shoppingSearchService');
+const UserMemory = require('../models/UserMemory');
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -1263,6 +1264,7 @@ async function generateAnswer({
   searchedProducts = [],
   userProfile = null,
   favoriteProducts = [],
+  userMemory = null,
 }) {
   const profileText = formatUserProfile(userProfile);
   const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
@@ -1356,6 +1358,7 @@ ${preferenceSummary}
 
 Kullanıcı profili:
 ${profileText}
+${memoryText}
 
 Önceki ürünler:
 ${JSON.stringify(recentProducts, null, 2)}
@@ -1372,6 +1375,18 @@ ${userMessage}
     messages: [{ role: 'user', content: answerPrompt }],
     temperature: 0.7,
   });
+
+  const memoryText = userMemory
+  ? `
+Uzun dönem kullanıcı alışveriş hafızası:
+- Favori markalar: ${(userMemory.favoriteBrands || []).join(', ') || 'Yok'}
+- Favori kategoriler: ${(userMemory.favoriteCategories || []).join(', ') || 'Yok'}
+- Renk tercihleri: ${(userMemory.preferredColors || []).join(', ') || 'Yok'}
+- Özellik tercihleri: ${(userMemory.preferredFeatures || []).join(', ') || 'Yok'}
+- Bütçe eğilimi: ${userMemory.budgetRange || 'Yok'}
+- Alışveriş tarzı: ${userMemory.shoppingStyle || 'Yok'}
+`
+  : '';
 
   const text = response.choices[0].message.content;
   const parsed = safeParseJson(text);
@@ -1764,6 +1779,7 @@ function isCheaperRequest(userMessage = '') {
 
 
 async function generateChatReply({
+  userId = null,
   userMessage,
   previousMessages = [],
   selectedProduct = null,
@@ -2617,6 +2633,12 @@ const finalActions =
     }
   }
 
+  await updateUserLongTermMemory({
+    userId,
+    previousMessages,
+    favoriteProducts,
+  });
+
   return {
     assistantText: polishedAssistantText,
     products: displayProducts,
@@ -3323,6 +3345,18 @@ function generatePreferenceInsightReply(previousMessages = [], favoriteProducts 
     bullets.push(`Alışveriş yaklaşımın: ${profile.shoppingStyle}`);
   }
 
+  if (profile.topColors?.length > 0) {
+    bullets.push(`Renk tercihlerin: ${profile.topColors.join(', ')}`);
+  }
+  
+  if (profile.topFeatures?.length > 0) {
+    bullets.push(`Öne çıkan ürün özellikleri: ${profile.topFeatures.join(', ')}`);
+  }
+  
+  if (profile.budgetRange) {
+    bullets.push(`Yaklaşık bütçe eğilimin: ${profile.budgetRange}`);
+  }
+
   bullets.push('Bunu geçmiş aramalarına ve baktığın ürünlere göre çıkarıyorum.');
 
   return `Seni şöyle tanıyorum:\n- ${bullets.join('\n- ')}`;
@@ -3347,6 +3381,18 @@ function buildPreferenceSeed(previousMessages = [], favoriteProducts = []) {
 
   if (profile.shoppingStyle && profile.shoppingStyle !== 'Henüz net değil') {
     parts.push(`Alışveriş yaklaşımı: ${profile.shoppingStyle}`);
+  }
+
+  if (profile.topColors?.length > 0) {
+    parts.push(`Renk eğilimleri: ${profile.topColors.join(', ')}`);
+  }
+  
+  if (profile.topFeatures?.length > 0) {
+    parts.push(`Öne çıkan özellik tercihleri: ${profile.topFeatures.join(', ')}`);
+  }
+  
+  if (profile.budgetRange) {
+    parts.push(`Yaklaşık bütçe eğilimi: ${profile.budgetRange}`);
   }
 
   return parts.join('\n');
@@ -3478,21 +3524,73 @@ function buildFavoritePreferenceProfile(favoriteProducts = []) {
 function buildUserPreferenceProfile(previousMessages = [], favoriteProducts = []) {
   const categoryScores = {};
   const brandScores = {};
+  const colorScores = {};
+  const featureScores = {};
+  const budgetValues = [];
+
   let priceSensitiveScore = 0;
   let premiumScore = 0;
 
-  for (const msg of previousMessages) {
-    const text = String(msg?.text || '');
+  const addScore = (obj, key, value = 1) => {
+    if (!key) return;
+    obj[key] = (obj[key] || 0) + value;
+  };
+
+  const captureSignals = (text = '', weight = 1) => {
     const normalized = normalizeText(text);
 
     const category = detectInterestCategory(text);
-    if (category) {
-      categoryScores[category] = (categoryScores[category] || 0) + 2;
-    }
+    if (category) addScore(categoryScores, category, 2 * weight);
 
     const brands = extractBrandSignals(text);
     for (const brand of brands) {
-      brandScores[brand] = (brandScores[brand] || 0) + 2;
+      addScore(brandScores, brand, 2 * weight);
+    }
+
+    const colors = [
+      'siyah',
+      'beyaz',
+      'gri',
+      'mavi',
+      'lacivert',
+      'kirmizi',
+      'kırmızı',
+      'yesil',
+      'yeşil',
+      'bej',
+      'kahverengi',
+      'pembe',
+      'mor',
+    ];
+
+    for (const color of colors) {
+      if (normalized.includes(normalizeText(color))) {
+        addScore(colorScores, color, weight);
+      }
+    }
+
+    const featureMap = {
+      kablosuz: ['kablosuz', 'wireless'],
+      oyuncu: ['gaming', 'oyuncu'],
+      kompakt: ['kucuk', 'küçük', 'kompakt', 'mini'],
+      premium: ['premium', 'ust seviye', 'üst seviye', 'kaliteli'],
+      'fiyat/performans': ['fiyat performans', 'f/p', 'fp'],
+      hafif: ['hafif'],
+      dayanıklı: ['dayanikli', 'dayanıklı', 'saglam', 'sağlam'],
+    };
+
+    for (const [feature, words] of Object.entries(featureMap)) {
+      if (words.some((w) => normalized.includes(normalizeText(w)))) {
+        addScore(featureScores, feature, weight);
+      }
+    }
+
+    const priceMatches = normalized.match(/(\d{3,7})\s*(tl|₺|lira)?/g) || [];
+    for (const match of priceMatches) {
+      const num = parseInt(match.replace(/[^\d]/g, ''), 10);
+      if (!isNaN(num) && num >= 100 && num <= 500000) {
+        budgetValues.push(num);
+      }
     }
 
     if (
@@ -3503,7 +3601,7 @@ function buildUserPreferenceProfile(previousMessages = [], favoriteProducts = []
       normalized.includes('butce') ||
       normalized.includes('bütçe')
     ) {
-      priceSensitiveScore += 2;
+      priceSensitiveScore += 2 * weight;
     }
 
     if (
@@ -3513,32 +3611,17 @@ function buildUserPreferenceProfile(previousMessages = [], favoriteProducts = []
       normalized.includes('ust seviye') ||
       normalized.includes('üst seviye')
     ) {
-      premiumScore += 1;
+      premiumScore += 1 * weight;
     }
+  };
 
-    const favoriteProfile = buildFavoritePreferenceProfile(favoriteProducts);
-
-    for (const category of favoriteProfile.topCategories) {
-      categoryScores[category] = (categoryScores[category] || 0) + 4;
-    }
-  
-    for (const brand of favoriteProfile.topBrands) {
-      brandScores[brand] = (brandScores[brand] || 0) + 4;
-    }
+  for (const msg of previousMessages.slice(-80)) {
+    captureSignals(msg?.text || '', 1);
 
     if (msg && Array.isArray(msg.products) && msg.products.length > 0) {
       for (const product of msg.products) {
-        const pText = `${product.name || ''} ${product.short_reason || ''}`;
-        const pCategory = detectInterestCategory(pText);
-
-        if (pCategory) {
-          categoryScores[pCategory] = (categoryScores[pCategory] || 0) + 1;
-        }
-
-        const pBrands = extractBrandSignals(pText);
-        for (const brand of pBrands) {
-          brandScores[brand] = (brandScores[brand] || 0) + 1;
-        }
+        const pText = `${product.name || ''} ${product.short_reason || ''} ${product.platform || ''}`;
+        captureSignals(pText, 0.5);
       }
     }
   }
@@ -3546,22 +3629,38 @@ function buildUserPreferenceProfile(previousMessages = [], favoriteProducts = []
   const favoriteProfile = buildFavoritePreferenceProfile(favoriteProducts);
 
   for (const category of favoriteProfile.topCategories) {
-    categoryScores[category] = (categoryScores[category] || 0) + 4;
+    addScore(categoryScores, category, 5);
   }
 
   for (const brand of favoriteProfile.topBrands) {
-    brandScores[brand] = (brandScores[brand] || 0) + 4;
+    addScore(brandScores, brand, 5);
   }
 
-  const topCategories = Object.entries(categoryScores)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name]) => name);
+  for (const product of favoriteProducts || []) {
+    const pText = `${product.name || ''} ${product.short_reason || ''} ${product.platform || ''}`;
+    captureSignals(pText, 1.5);
+  }
 
-  const topBrands = Object.entries(brandScores)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name]) => name);
+  const topFromScores = (scores, limit = 3) =>
+    Object.entries(scores)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([name]) => name);
+
+  const topCategories = topFromScores(categoryScores, 3);
+  const topBrands = topFromScores(brandScores, 4);
+  const topColors = topFromScores(colorScores, 3);
+  const topFeatures = topFromScores(featureScores, 4);
+
+  let budgetRange = null;
+
+  if (budgetValues.length > 0) {
+    const sorted = [...budgetValues].sort((a, b) => a - b);
+    const min = sorted[0];
+    const max = sorted[sorted.length - 1];
+
+    budgetRange = min === max ? `${min} TL civarı` : `${min}-${max} TL arası`;
+  }
 
   let shoppingStyle = 'Henüz net değil';
 
@@ -3573,11 +3672,21 @@ function buildUserPreferenceProfile(previousMessages = [], favoriteProducts = []
     shoppingStyle = 'Denge arayan, hem fiyatı hem kaliteyi önemseyen';
   }
 
+  const hasStrongSignal =
+    topCategories.length > 0 ||
+    topBrands.length > 0 ||
+    topColors.length > 0 ||
+    topFeatures.length > 0 ||
+    Boolean(budgetRange);
+
   return {
     topCategories,
     topBrands,
+    topColors,
+    topFeatures,
+    budgetRange,
     shoppingStyle,
-    hasStrongSignal: topCategories.length > 0 || topBrands.length > 0,
+    hasStrongSignal,
   };
 }
 
@@ -3729,6 +3838,47 @@ function detectGenericShoppingCategory(userMessage = '') {
   }
 
   return null;
+}
+
+async function updateUserLongTermMemory({
+  userId,
+  previousMessages = [],
+  favoriteProducts = [],
+}) {
+  if (!userId) return;
+
+  try {
+    const profile = buildUserPreferenceProfile(
+      previousMessages,
+      favoriteProducts
+    );
+
+    await UserMemory.findOneAndUpdate(
+      { userId },
+      {
+        userId,
+        favoriteBrands: profile.topBrands || [],
+        favoriteCategories: profile.topCategories || [],
+        preferredColors: profile.topColors || [],
+        preferredFeatures: profile.topFeatures || [],
+        budgetRange: profile.budgetRange || '',
+        shoppingStyle: profile.shoppingStyle || '',
+        lastSignals: [
+          ...(profile.topBrands || []),
+          ...(profile.topCategories || []),
+          ...(profile.topFeatures || []),
+        ].slice(0, 15),
+      },
+      {
+        upsert: true,
+        new: true,
+      }
+    );
+
+    console.log('LONG TERM MEMORY UPDATED:', userId);
+  } catch (err) {
+    console.log('LONG TERM MEMORY ERROR:', err.message);
+  }
 }
 
 module.exports = {
