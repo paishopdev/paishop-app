@@ -185,22 +185,40 @@ function scoreAndRankProducts(products, userMessage, plannerQuery = '') {
     else score -= 12;
 
     const rating = Number(product.rating);
-    if (!isNaN(rating) && rating > 0) {
-      score += rating * 4;
-    } else {
-      score -= 2;
-    }
+const reviews = Number(product.reviews);
 
-    const reviews = Number(product.reviews);
-    if (!isNaN(reviews) && reviews > 0) {
-      if (reviews >= 1000) score += 12;
-      else if (reviews >= 500) score += 9;
-      else if (reviews >= 100) score += 6;
-      else if (reviews >= 20) score += 3;
-      else score += 1;
-    } else {
-      score -= 4;
-    }
+const hasStrongSocialProof =
+  !isNaN(rating) &&
+  rating >= 4 &&
+  !isNaN(reviews) &&
+  reviews >= 20;
+
+if (!isNaN(rating) && rating > 0) {
+  score += rating * 6;
+
+  if (rating >= 4.7) score += 12;
+  else if (rating >= 4.5) score += 9;
+  else if (rating >= 4.2) score += 6;
+  else if (rating >= 4.0) score += 3;
+} else {
+  score -= 8;
+}
+
+if (!isNaN(reviews) && reviews > 0) {
+  if (reviews >= 10000) score += 18;
+  else if (reviews >= 5000) score += 15;
+  else if (reviews >= 1000) score += 12;
+  else if (reviews >= 500) score += 10;
+  else if (reviews >= 100) score += 7;
+  else if (reviews >= 20) score += 4;
+  else score += 1;
+} else {
+  score -= 10;
+}
+
+if (hasStrongSocialProof) {
+  score += 15;
+}
 
     if (isUnavailableProduct(product)) score -= 100;
 
