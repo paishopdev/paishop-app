@@ -1932,7 +1932,14 @@ if (barcodeMatch) {
     };
   }
 
-  if (isGenericRecommendationRequest(userMessage)) {
+  if (
+    isGenericRecommendationRequest(userMessage) &&
+    !isComparisonLikeRequest(userMessage) &&
+    !isSellerComparisonRequest(userMessage) &&
+    !isReviewRequest(userMessage) &&
+    !detectActionCommand(userMessage) &&
+    !isSmallTalkMessage(userMessage)
+  ) {
     const preferenceSeed = buildPreferenceSeed(previousMessages, favoriteProducts);
 
     if (preferenceSeed && preferenceSeed.trim().length > 0) {
@@ -2034,6 +2041,7 @@ const referencedProduct = explicitReference
 const referenceAction = explicitReference
   ? buildReferenceBasedReply(userMessage, referencedProduct)
   : null;
+  const actionCommand = detectActionCommand(userMessage);
   const isComparisonRequest = isComparisonLikeRequest(userMessage);
   const isSellerCompare = isSellerComparisonRequest(userMessage);
   console.log("GLOBAL SELLER COMPARE:", isSellerCompare);
