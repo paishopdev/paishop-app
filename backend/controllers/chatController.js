@@ -245,16 +245,16 @@ const memoryMessages = buildCrossChatMemory(chat, allUserChats);
 
 let aiResult;
 
-try {
-  aiResult = await generateChatReply({
-    userId: user._id,
-    userMessage: userText,
-    previousMessages: memoryMessages,
-    selectedProduct,
-    userProfile,
-    favoriteProducts,
-  });
-} catch (error) {
+try { 
+  aiResult = await generateChatReply({ 
+    userMessage: userText, 
+    previousMessages: memoryMessages, 
+    selectedProduct, 
+    userProfile, 
+    favoriteProducts, });
+} 
+
+catch (error) {
   console.error("AI ERROR:", error.message);
   console.error("AI ERROR STATUS:", error.status || error.response?.status || null);
   console.error("AI ERROR DATA:", error.response?.data || error.error || null);

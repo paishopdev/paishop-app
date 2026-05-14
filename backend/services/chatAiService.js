@@ -1,6 +1,5 @@
 const OpenAI = require('openai');
 const { searchProducts } = require('./shoppingSearchService');
-const UserMemory = require('../models/UserMemory');
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -1257,32 +1256,19 @@ return parsed || {
 };
 }
 
-async function generateAnswer({
-  userMessage,
-  previousMessages = [],
-  planner,
-  searchedProducts = [],
-  userProfile = null,
-  favoriteProducts = [],
-  userMemory = null,
+async function generateAnswer({ 
+  userMessage, 
+  previousMessages = [], 
+  planner, 
+  searchedProducts = [], 
+  userProfile = null, favoriteProducts = [], 
 }) {
+
   const profileText = formatUserProfile(userProfile);
   const preferenceSummary = buildUserPreferenceSummary(previousMessages, favoriteProducts);
   const historyText = formatHistory(previousMessages);
   const recentProducts = extractRecentProducts(previousMessages);
   const normalizedSearchedProducts = normalizeProducts(searchedProducts);
-
-  const memoryText = userMemory
-  ? `
-Uzun dönem kullanıcı alışveriş hafızası:
-- Favori markalar: ${(userMemory.favoriteBrands || []).join(', ') || 'Yok'}
-- Favori kategoriler: ${(userMemory.favoriteCategories || []).join(', ') || 'Yok'}
-- Renk tercihleri: ${(userMemory.preferredColors || []).join(', ') || 'Yok'}
-- Özellik tercihleri: ${(userMemory.preferredFeatures || []).join(', ') || 'Yok'}
-- Bütçe eğilimi: ${userMemory.budgetRange || 'Yok'}
-- Alışveriş tarzı: ${userMemory.shoppingStyle || 'Yok'}
-`
-  : '';
 
   const answerPrompt = `
 Sen Shopi’sin. Kullanıcılara ürün bulma, karşılaştırma ve alışveriş kararlarında yardımcı olan akıllı ve samimi bir asistansın.
@@ -1370,7 +1356,6 @@ ${preferenceSummary}
 
 Kullanıcı profili:
 ${profileText}
-${memoryText}
 
 Önceki ürünler:
 ${JSON.stringify(recentProducts, null, 2)}
@@ -1801,7 +1786,6 @@ function isCheaperRequest(userMessage = '') {
 
 
 async function generateChatReply({
-  userId = null,
   userMessage,
   previousMessages = [],
   selectedProduct = null,
@@ -1908,8 +1892,6 @@ async function generateChatReply({
     };
   }
   console.log("NEW GENERATECHATREPLY ACTIVE:", userMessage);
-
-  const actionCommand = detectActionCommand(userMessage);
 
   const barcodeMatch = String(userMessage || '').match(/barkod:\s*([0-9]{6,20})/i);
 
@@ -2655,12 +2637,6 @@ const finalActions =
       };
     }
   }
-
-  await updateUserLongTermMemory({
-    userId,
-    previousMessages,
-    favoriteProducts,
-  });
 
   return {
     assistantText: polishedAssistantText,
@@ -3861,47 +3837,6 @@ function detectGenericShoppingCategory(userMessage = '') {
   }
 
   return null;
-}
-
-async function updateUserLongTermMemory({
-  userId,
-  previousMessages = [],
-  favoriteProducts = [],
-}) {
-  if (!userId) return;
-
-  try {
-    const profile = buildUserPreferenceProfile(
-      previousMessages,
-      favoriteProducts
-    );
-
-    await UserMemory.findOneAndUpdate(
-      { userId },
-      {
-        userId,
-        favoriteBrands: profile.topBrands || [],
-        favoriteCategories: profile.topCategories || [],
-        preferredColors: profile.topColors || [],
-        preferredFeatures: profile.topFeatures || [],
-        budgetRange: profile.budgetRange || '',
-        shoppingStyle: profile.shoppingStyle || '',
-        lastSignals: [
-          ...(profile.topBrands || []),
-          ...(profile.topCategories || []),
-          ...(profile.topFeatures || []),
-        ].slice(0, 15),
-      },
-      {
-        upsert: true,
-        new: true,
-      }
-    );
-
-    console.log('LONG TERM MEMORY UPDATED:', userId);
-  } catch (err) {
-    console.log('LONG TERM MEMORY ERROR:', err.message);
-  }
 }
 
 module.exports = {
