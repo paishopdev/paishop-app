@@ -370,6 +370,7 @@ async function searchProducts(query, type = 'search') {
 
   if (results && results.length > 0) {
     results = await enrichMissingImages(results);
+    results = results.filter(hasHttpImage);
     results = applyProductQualityPipeline(results, cleanQuery);
   }
 
