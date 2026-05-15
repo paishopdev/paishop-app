@@ -1,11 +1,21 @@
 # Node
+node_modules/
 backend/node_modules/
+
+# Env
+.env
+.env.*
 backend/.env
+backend/.env.*
+mobile/.env
+mobile/.env.*
 
 # Flutter
 mobile/.dart_tool/
 mobile/.packages
 mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
 
 # General
 .DS_Store
