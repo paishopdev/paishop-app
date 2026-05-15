@@ -126,6 +126,17 @@ async function searchSerperShopping(query) {
     }));
 }
 
+function isGoodImageUrl(value = '') {
+  const url = String(value || '').trim();
+
+  if (!url.startsWith('http')) return false;
+  if (url.startsWith('data:image')) return false;
+  if (url.includes('base64')) return false;
+  if (url.includes('encrypted-tbn')) return false;
+
+  return true;
+}
+
 async function searchSerperImages(query) {
   const apiKey = process.env.SERPER_API_KEY;
 
@@ -135,7 +146,7 @@ async function searchSerperImages(query) {
 
   const response = await axios.post(
     'https://google.serper.dev/images',
-    { q: query, gl: 'tr', hl: 'tr' },
+    { q: query, gl: 'tr', hl: 'tr', num: 10 },
     {
       headers: {
         'X-API-KEY': apiKey,
@@ -147,20 +158,22 @@ async function searchSerperImages(query) {
 
   const results = response.data.images || [];
 
+  const candidates = [];
+
   for (const item of results) {
-    const img =
+    const imageUrl =
       item.imageUrl ||
-      item.thumbnailUrl ||
       item.image ||
+      item.thumbnailUrl ||
       item.thumbnail ||
       '';
 
-    if (typeof img === 'string' && img.startsWith('http')) {
-      return img;
+    if (isGoodImageUrl(imageUrl)) {
+      candidates.push(imageUrl);
     }
   }
 
-  return '';
+  return candidates[0] || '';
 }
 
 module.exports = { searchSerperShopping, searchSerperImages };

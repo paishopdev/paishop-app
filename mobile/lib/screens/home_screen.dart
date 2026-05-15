@@ -945,7 +945,12 @@ bool shouldShowLoadingForCurrentChat() {
 Future<void> search() async {
   if (loading) return;
 
-  final query = controller.text.trim();
+final query = controller.text.trim();
+if (query.isEmpty) return;
+
+setState(() {
+  loading = true;
+});
 
   if (selectedGalleryImages.isNotEmpty) {
     await sendGalleryImagesWithPrompt();
@@ -954,7 +959,23 @@ Future<void> search() async {
 
   if (query.isEmpty) return;
 
-  final selectedContextBeforeSend = selectedProductContext;
+  final queryLower = query.toLowerCase();
+
+final isFreshProductSearch =
+    queryLower.contains("öner") ||
+    queryLower.contains("oner") ||
+    queryLower.contains("bul") ||
+    queryLower.contains("listele") ||
+    queryLower.contains("göster") ||
+    queryLower.contains("goster") ||
+    queryLower.contains("tavsiye");
+
+final selectedContextBeforeSend =
+    isFreshProductSearch ? null : selectedProductContext;
+
+if (isFreshProductSearch) {
+  selectedProductContext = null;
+}
 
   String chatIdForRequest = currentChatId;
 
@@ -966,7 +987,6 @@ Future<void> search() async {
 
     if (!mounted) return;
 setState(() {
-  loading = true;
   loadingChatId = chatIdForRequest;
   loadingMode = detectLoadingMode(query, selectedContextBeforeSend);
 });
