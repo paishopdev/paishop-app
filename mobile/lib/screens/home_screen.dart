@@ -957,27 +957,49 @@ setState(() {
     return;
   }
 
-  if (query.isEmpty) return;
+ if (query.isEmpty) return;
 
-  final queryLower = query.toLowerCase();
+final normalizedQuery = query
+    .toLowerCase()
+    .replaceAll('ı', 'i')
+    .replaceAll('ğ', 'g')
+    .replaceAll('ü', 'u')
+    .replaceAll('ş', 's')
+    .replaceAll('ö', 'o')
+    .replaceAll('ç', 'c');
 
 final isFreshProductSearch =
-    queryLower.contains("öner") ||
-    queryLower.contains("oner") ||
-    queryLower.contains("bul") ||
-    queryLower.contains("listele") ||
-    queryLower.contains("göster") ||
-    queryLower.contains("goster") ||
-    queryLower.contains("tavsiye");
+    normalizedQuery.contains("oner") ||
+    normalizedQuery.contains("tavsiye") ||
+    normalizedQuery.contains("bul") ||
+    normalizedQuery.contains("listele") ||
+    normalizedQuery.contains("goster") ||
+    normalizedQuery.contains("ariyorum") ||
+    normalizedQuery.contains("istiyorum");
+
+final isProductReference =
+    normalizedQuery.contains("bu urun") ||
+    normalizedQuery.contains("bunun") ||
+    normalizedQuery.contains("sunun") ||
+    normalizedQuery.contains("o urun") ||
+    normalizedQuery.contains("yorum") ||
+    normalizedQuery.contains("detay") ||
+    normalizedQuery.contains("karsilastir") ||
+    normalizedQuery.contains("benzer") ||
+    normalizedQuery.contains("daha ucuz");
 
 final selectedContextBeforeSend =
-    isFreshProductSearch ? null : selectedProductContext;
+    isFreshProductSearch && !isProductReference ? null : selectedProductContext;
 
-if (isFreshProductSearch) {
+if (isFreshProductSearch && !isProductReference) {
   selectedProductContext = null;
 }
 
-  String chatIdForRequest = currentChatId;
+debugPrint("FRESH SEARCH: $isFreshProductSearch");
+debugPrint("PRODUCT REFERENCE: $isProductReference");
+debugPrint("SELECTED CONTEXT TO SEND: ${selectedContextBeforeSend?.name}");
+
+String chatIdForRequest = currentChatId;
 
   try {
     if (chatIdForRequest.isEmpty) {
