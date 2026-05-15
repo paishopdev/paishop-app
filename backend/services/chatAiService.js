@@ -1850,7 +1850,11 @@ async function generateChatReply({
 })
 
 {
-  if (selectedProduct && selectedProduct.name) {
+  if (
+    selectedProduct &&
+    selectedProduct.name &&
+    !isFreshProductSearchRequest(userMessage)
+  ) {
     console.log(
       "SELECTED PRODUCT FLOW ACTIVE FOR:",
       selectedProduct ? selectedProduct.name : null
@@ -2884,6 +2888,39 @@ function isSmallTalkMessage(userMessage = '') {
   ];
 
   return patterns.some((p) => text.includes(p));
+}
+
+function isFreshProductSearchRequest(userMessage = '') {
+  const text = normalizeText(userMessage);
+
+  const freshWords = [
+    'oner',
+    'tavsiye',
+    'bul',
+    'listele',
+    'goster',
+    'ariyorum',
+    'istiyorum',
+  ];
+
+  const referenceWords = [
+    'bu urun',
+    'bunun',
+    'sunun',
+    'o urun',
+    'az onceki',
+    'son urun',
+    'benzer',
+    'daha ucuz',
+    'karsilastir',
+    'yorum',
+    'detay',
+  ];
+
+  const wantsFreshSearch = freshWords.some((w) => text.includes(w));
+  const referencesOldProduct = referenceWords.some((w) => text.includes(w));
+
+  return wantsFreshSearch && !referencesOldProduct;
 }
 
 function isReviewRequest(userMessage = '') {
