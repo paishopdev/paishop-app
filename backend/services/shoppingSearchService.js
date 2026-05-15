@@ -202,6 +202,112 @@ function filterBarcodeResults(results = [], cleanQuery = '') {
   return filtered.length > 0 ? filtered : results;
 }
 
+function normalizeProductText(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanProductName(name = '') {
+  return String(name || '')
+    .replace(/[🔥⭐🚀✅❌💥]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function productFingerprint(product = {}) {
+  return normalizeProductText(product.name || '')
+    .replace(/\b(urun|ürün|kampanya|indirim|firsat|fırsat)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 90);
+}
+
+function removeDuplicateProducts(products = []) {
+  const seen = new Set();
+  const output = [];
+
+  for (const product of products || []) {
+    const key =
+      product.link ||
+      `${productFingerprint(product)}-${normalizeProductText(product.platform || '')}`;
+
+    if (!key || seen.has(key)) continue;
+
+    seen.add(key);
+    output.push(product);
+  }
+
+  return output;
+}
+
+function productQualityScore(product = {}, cleanQuery = '') {
+  let score = 0;
+
+  const name = normalizeProductText(product.name || '');
+  const platform = normalizeProductText(product.platform || '');
+  const queryWords = normalizeProductText(cleanQuery)
+    .split(' ')
+    .filter((w) => w.length >= 3);
+
+  if (product.name) score += 8;
+  if (product.price && product.price !== 'Fiyat yok') score += 14;
+  if (product.link) score += 14;
+  if (hasHttpImage(product)) score += 22;
+  if (product.rating) score += 6;
+  if (product.reviews) score += 6;
+  if (platform) score += 4;
+
+  const haystack = `${name} ${platform}`;
+  const matchCount = queryWords.filter((w) => haystack.includes(w)).length;
+
+  if (queryWords.length > 0) {
+    score += matchCount * 8;
+
+    if (matchCount === 0) score -= 18;
+  }
+
+  if (!product.link) score -= 25;
+  if (!product.price || product.price === 'Fiyat yok') score -= 20;
+  if (!product.name) score -= 30;
+
+  return score;
+}
+
+function applyProductQualityPipeline(products = [], cleanQuery = '') {
+  let cleaned = (products || [])
+    .map((product) => ({
+      ...product,
+      name: cleanProductName(product.name || ''),
+    }))
+    .filter((product) => {
+      if (!product.name) return false;
+      if (!product.link) return false;
+      if (!product.price || product.price === 'Fiyat yok') return false;
+      return true;
+    });
+
+  cleaned = removeDuplicateProducts(cleaned);
+
+  cleaned = cleaned
+    .map((product) => ({
+      ...product,
+      _qualityScore: productQualityScore(product, cleanQuery),
+    }))
+    .sort((a, b) => b._qualityScore - a._qualityScore)
+    .map(({ _qualityScore, ...rest }) => rest);
+
+  return cleaned;
+}
+
 async function searchProducts(query, type = 'search') {
   let cleanQuery = String(query || '').trim().toLowerCase();
 
@@ -264,13 +370,14 @@ async function searchProducts(query, type = 'search') {
 
   if (results && results.length > 0) {
     results = await enrichMissingImages(results);
+    results = applyProductQualityPipeline(results, cleanQuery);
   }
 
   if (results && results.length > 0) {
     const expireMinutes = getCacheMinutes(type);
 
     await SearchCache.findOneAndUpdate(
-      { query: cleanQuery, type },
+      { query: cleanQuery, type: cacheType },
       {
         query: cleanQuery,
         type: cacheType,

@@ -1876,6 +1876,9 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
   final price = (item["price"] ?? "").toString();
   final image = (item["image"] ?? "").toString();
   final platform = (item["platform"] ?? "").toString();
+  final badge = (item["badge"] ?? "").toString();
+  final trustScore = item["trustScore"];
+  final fitFor = (item["fitFor"] ?? "").toString();
 
   return TweenAnimationBuilder<double>(
   tween: Tween(begin: 0.96, end: 1),
@@ -1891,7 +1894,7 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
     );
   },
   child: SizedBox(
-    height: 340,
+    height: 430,
     child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -1971,6 +1974,56 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
                 fontWeight: FontWeight.w600,
               ),
             ),
+
+            const SizedBox(height: 8),
+
+if (badge.isNotEmpty)
+  Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: primaryColor.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(
+      badge,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: primaryColor,
+        fontSize: 10.5,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  ),
+
+if (trustScore != null) ...[
+  const SizedBox(height: 6),
+  Text(
+    "Güven skoru: $trustScore/10",
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(
+      color: Colors.grey.shade700,
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+    ),
+  ),
+],
+
+if (fitFor.isNotEmpty) ...[
+  const SizedBox(height: 6),
+  Text(
+    fitFor,
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(
+      color: Colors.grey.shade600,
+      fontSize: 10.8,
+      height: 1.25,
+      fontWeight: FontWeight.w500,
+    ),
+  ),
+],
         ],
       ),
     ),
@@ -2006,6 +2059,12 @@ List<Widget> buildComparisonDetails(
       "v2": p2["rating"],
       "better": compareNumber(p1["rating"], p2["rating"]),
     },
+    {
+  "title": "Güven",
+  "v1": p1["trustScore"] != null ? "${p1["trustScore"]}/10" : null,
+  "v2": p2["trustScore"] != null ? "${p2["trustScore"]}/10" : null,
+  "better": compareNumber(p1["trustScore"], p2["trustScore"]),
+},
   ];
 
   return rows.map((row) {

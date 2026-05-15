@@ -736,16 +736,72 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
     filterProductsToSameCategory(finalProducts || [], userMessage)
   )
     .slice(0, 4)
-    .map((p) => ({
-      name: p.name || '',
-      price: p.price || '',
-      platform: p.platform || '',
-      image: p.image || p.thumbnail || p.productImage || '',
-      link: p.link || '',
-      short_reason: p.short_reason || '',
-      rating: p.rating || null,
-      reviews: p.reviews || null,
-    }));
+    .map((p, index) => {
+      const rating = Number(p.rating) || null;
+      const reviews = Number(p.reviews) || null;
+    
+      let badge = '';
+      let pros = [];
+      let cons = [];
+      let fitFor = '';
+      let trustScore = null;
+    
+      if (rating && rating >= 4.5) {
+        badge = 'En yüksek puan';
+      }
+    
+      if (reviews && reviews >= 1000) {
+        badge = badge || 'En popüler';
+      }
+    
+      if (index === 0 && !badge) {
+        badge = 'Önerilen seçim';
+      }
+    
+      if (rating && rating >= 4.3) {
+        pros.push('Kullanıcı memnuniyeti yüksek');
+      }
+    
+      if (reviews && reviews >= 500) {
+        pros.push('Çok fazla kullanıcı yorumu var');
+      }
+    
+      if (!reviews || reviews < 20) {
+        cons.push('Yeterince kullanıcı yorumu bulunmuyor');
+      }
+    
+      if (rating && rating < 4) {
+        cons.push('Puan ortalaması rakiplerinden düşük');
+      }
+    
+      if (reviews && rating) {
+        trustScore = Math.min(
+          10,
+          Number(((rating * 2) + Math.log10(reviews + 1)).toFixed(1))
+        );
+      }
+    
+      fitFor =
+        rating && rating >= 4.5
+          ? 'Uzun süreli kullanım ve güvenli tercih isteyenler için uygun'
+          : 'Fiyat/performans odaklı kullanıcılar için uygun';
+    
+      return {
+        name: p.name || '',
+        price: p.price || '',
+        platform: p.platform || '',
+        image: p.image || p.thumbnail || p.productImage || '',
+        link: p.link || '',
+        short_reason: p.short_reason || '',
+        rating,
+        reviews,
+        badge,
+        pros,
+        cons,
+        fitFor,
+        trustScore,
+      };
+    });
 
   if (compareProducts.length === 0) {
     return null;
