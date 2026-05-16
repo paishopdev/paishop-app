@@ -6,6 +6,20 @@ const OpenAI = require('openai');
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+function safeParseJson(text) {
+  try {
+    const cleaned = String(text || '')
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
+
+    return JSON.parse(cleaned);
+  } catch (error) {
+    console.error('JSON parse error:', error.message);
+    console.error('Raw AI response:', text);
+    return null;
+  }
+}
 function buildCrossChatMemory(currentChat, allChats = []) {
   const currentChatId = String(currentChat?._id || '');
 
