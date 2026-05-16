@@ -1963,9 +1963,7 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
       ),
     );
   },
-  child: SizedBox(
-    height: 360,
-    child: Container(
+  child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
   color: Colors.white,
@@ -2096,8 +2094,7 @@ if (fitFor.isNotEmpty) ...[
 ],
         ],
       ),
-    ),
-  ));
+    ));
 }
 
 List<Widget> buildComparisonDetails(
