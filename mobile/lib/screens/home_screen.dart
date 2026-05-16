@@ -624,29 +624,32 @@ void showImageSourcePicker() {
                 },
               ),
               const SizedBox(height: 6),
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-                leading: Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF6C63FF).withOpacity(0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.photo_library_outlined,
-                    color: Color(0xFF6C63FF),
-                  ),
-                ),
-              title: const Text(
-  "Galeriden seç",
-  style: TextStyle(fontWeight: FontWeight.w700),
-),
-subtitle: const Text("En fazla 3 görsel seçebilirsin"),
-onTap: () {
-  Navigator.pop(context);
-  pickImagesFromGallery();
-},
+
+ListTile(
+  contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+  leading: Container(
+    width: 42,
+    height: 42,
+    decoration: BoxDecoration(
+      color: const Color(0xFF6C63FF).withOpacity(0.10),
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(
+      Icons.photo_library_outlined,
+      color: Color(0xFF6C63FF),
+    ),
+  ),
+  title: const Text(
+    "Galeriden seç",
+    style: TextStyle(fontWeight: FontWeight.w700),
+  ),
+  subtitle: const Text(
+    "En fazla 3 görsel seçebilirsin",
+  ),
+  onTap: () {
+    Navigator.pop(context);
+    pickImagesFromGallery();
+  },
 ),
 
 const SizedBox(height: 6),
@@ -669,7 +672,9 @@ ListTile(
     "Cilt analizi yap",
     style: TextStyle(fontWeight: FontWeight.w700),
   ),
-  subtitle: const Text("AI destekli cilt bakım önerileri al"),
+  subtitle: const Text(
+    "AI destekli cilt bakım önerileri al",
+  ),
   onTap: () {
     Navigator.pop(context);
     pickSkinImageAndAnalyze();
