@@ -774,10 +774,12 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
         cons.push('Puan ortalaması rakiplerinden düşük');
       }
     
-      if (reviews && rating) {
+      if (rating) {
+        const reviewBoost = reviews ? Math.log10(reviews + 1) : 0.4;
+      
         trustScore = Math.min(
           10,
-          Number(((rating * 2) + Math.log10(reviews + 1)).toFixed(1))
+          Number(((rating * 2) + reviewBoost).toFixed(1))
         );
       }
     

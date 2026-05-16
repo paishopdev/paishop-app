@@ -900,42 +900,70 @@ setState(() {
     }
   }
 
-  String detectLoadingMode(String text, Product? selectedProduct) {
-  final q = text.toLowerCase();
+String detectLoadingMode(String text, Product? selectedProduct) {
+  final q = text
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ş', 's')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c');
 
-  if (q.contains('satıcı') ||
-      q.contains('satici') ||
-      q.contains('mağaza') ||
+  if (q.contains('satici') ||
       q.contains('magaza') ||
-      q.contains('farklı satıcı') ||
       q.contains('farkli satici')) {
     return 'seller';
   }
 
   if (q.contains('yorum') ||
-      q.contains('kullanıcı') ||
       q.contains('kullanici') ||
-      q.contains('değerlendirme') ||
       q.contains('degerlendirme')) {
     return 'review';
   }
 
   if (q.contains('detay') ||
-      q.contains('özellik') ||
       q.contains('ozellik') ||
-      q.contains('nasıl') ||
       q.contains('nasil')) {
     return 'detail';
   }
 
-  if (q.contains('karşılaştır') ||
-      q.contains('karsilastir') ||
+  if (q.contains('karsilastir') ||
       q.contains('hangisi') ||
       q.contains('en iyisi')) {
     return 'comparison';
   }
 
-  return 'products';
+  final productIntentWords = [
+    'oner',
+    'tavsiye',
+    'bul',
+    'goster',
+    'listele',
+    'fiyat',
+    'marka',
+    'model',
+    'urun',
+    'alinir',
+    'alinmaz',
+    'gaming',
+    'mouse',
+    'kulaklik',
+    'telefon',
+    'laptop',
+    'ps5',
+    'dyson',
+    'iphone',
+  ];
+
+  final hasProductIntent =
+      productIntentWords.any((w) => q.contains(w));
+
+  if (hasProductIntent) {
+    return 'products';
+  }
+
+  return 'text';
 }
 
 bool shouldShowLoadingForCurrentChat() {
@@ -1936,7 +1964,7 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
     );
   },
   child: SizedBox(
-    height: 430,
+    height: 360,
     child: Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -1956,7 +1984,7 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 180,
+            height: 135,
             width: double.infinity,
             decoration: BoxDecoration(
               color: Colors.white,
@@ -2084,10 +2112,10 @@ List<Widget> buildComparisonDetails(
       "better": comparePrice(p1["price"], p2["price"]),
     },
     {
-      "title": "Mağaza",
-      "v1": p1["platform"],
-      "v2": p2["platform"],
-      "better": 0,
+      "better": ((p1["platform"] ?? "").toString().isNotEmpty &&
+        (p2["platform"] ?? "").toString().isNotEmpty)
+    ? 3
+    : 0,
     },
     {
       "title": "Yorum",
@@ -2116,7 +2144,12 @@ List<Widget> buildComparisonDetails(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Expanded(child: buildCompareValue(row["v1"], better == 1)),
+          Expanded(
+  child: buildCompareValue(
+    row["v1"],
+    better == 1 || better == 3 ? 1 : 2,
+  ),
+),
           Expanded(
             child: Center(
               child: Text(
@@ -2128,48 +2161,66 @@ List<Widget> buildComparisonDetails(
               ),
             ),
           ),
-          Expanded(child: buildCompareValue(row["v2"], better == 2)),
+          Expanded(
+  child: buildCompareValue(
+    row["v2"],
+    better == 2 || better == 3 ? 1 : 2,
+  ),
+),
         ],
       ),
     );
   }).toList();
 }
-Widget buildCompareValue(dynamic value, bool isBetter) {
+Widget buildCompareValue(dynamic value, dynamic better) {
+  final bool isGood = better == true || better == 1 || better == 3;
+  final bool isNeutral = better == 0 || better == null;
+
   return TweenAnimationBuilder<double>(
-  tween: Tween(begin: 0.8, end: 1),
-  duration: const Duration(milliseconds: 280),
-  curve: Curves.easeOutBack,
-  builder: (context, value, child) {
-    return Transform.scale(
-      scale: value,
-      child: child,
-    );
-  },
-  child: Row(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Icon(
-        isBetter ? Icons.check_circle : Icons.remove_circle,
-        color: isBetter ? Colors.green : Colors.redAccent,
-        size: 16,
-      ),
-      const SizedBox(width: 4),
-      Flexible(
-        child: Text(
-          (value == null || value.toString().trim().isEmpty || value.toString() == "null")
-              ? "Veri yok"
-              : value.toString(),
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
+    tween: Tween(begin: 0.8, end: 1),
+    duration: const Duration(milliseconds: 280),
+    curve: Curves.easeOutBack,
+    builder: (context, animValue, child) {
+      return Transform.scale(
+        scale: animValue,
+        child: child,
+      );
+    },
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          isNeutral
+              ? Icons.remove_circle_outline
+              : isGood
+                  ? Icons.check_circle
+                  : Icons.remove_circle,
+          color: isNeutral
+              ? Colors.grey
+              : isGood
+                  ? Colors.green
+                  : Colors.redAccent,
+          size: 16,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            (value == null ||
+                    value.toString().trim().isEmpty ||
+                    value.toString() == "null")
+                ? "Veri yok"
+                : value.toString(),
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black87,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-      ),
-    ],
-  ),
-);
+      ],
+    ),
+  );
 }
 int comparePrice(String p1, String p2) {
   final n1 = extractNumber(p1);
