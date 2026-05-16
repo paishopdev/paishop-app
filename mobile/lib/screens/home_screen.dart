@@ -633,35 +633,6 @@ void showImageSourcePicker() {
                   pickImagesFromGallery();
                 },
               ),
-
-              const SizedBox(height: 18),
-              Divider(color: Colors.grey.shade200),
-              const SizedBox(height: 10),
-
-              const Text(
-                "AI Cilt Bakım Asistanı",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-                leading: Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.pink.withOpacity(0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.face_retouching_natural_outlined, color: Colors.pink),
-                ),
-                title: const Text("Cilt analizi yap", style: TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: const Text("Selfie çek, AI destekli bakım önerileri al"),
-                onTap: () {
-                  Navigator.pop(context);
-                  pickSkinImageAndAnalyze();
-                },
-              ),
             ],
           ),
         ),
@@ -3486,6 +3457,39 @@ void showAttachmentActions() {
                   }
                 },
               ),
+              const SizedBox(height: 12),
+
+ListTile(
+  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+  leading: Container(
+    width: 54,
+    height: 54,
+    decoration: BoxDecoration(
+      color: Colors.pink.withOpacity(0.12),
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(
+      Icons.face_retouching_natural_outlined,
+      color: Colors.pink,
+      size: 28,
+    ),
+  ),
+  title: const Text(
+    "Cilt analizi yap",
+    style: TextStyle(
+      fontWeight: FontWeight.w800,
+      fontSize: 16,
+    ),
+  ),
+  subtitle: const Text(
+    "Selfie çek, AI destekli bakım önerileri al",
+  ),
+  trailing: const Icon(Icons.chevron_right_rounded),
+  onTap: () {
+    Navigator.pop(context);
+    pickSkinImageAndAnalyze();
+  },
+),
             ],
           ),
         ),
