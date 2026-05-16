@@ -1495,15 +1495,18 @@ function detectActionCommand(userMessage = '') {
     return 'find_cheaper';
   }
 
-  if (
-    text.includes('ac') ||
-    text.includes('detay') ||
-    text.includes('bilgi ver') ||
-    text.includes('hakkinda bilgi') ||
-    text.includes('incele')
-  ) {
-    return 'detail';
-  }
+  const words = text.split(' ').filter(Boolean);
+
+if (
+  words.includes('ac') ||
+  words.includes('acabilir') ||
+  text.includes('detay') ||
+  text.includes('bilgi ver') ||
+  text.includes('hakkinda bilgi') ||
+  text.includes('incele')
+) {
+  return 'detail';
+}
 
   return null;
 }
