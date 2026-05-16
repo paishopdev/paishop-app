@@ -174,6 +174,8 @@ const addMessageToChat = async (req, res) => {
       comparison: null,
     });
 
+  
+
     await chat.save();
 
     return res.json(chat);
@@ -182,6 +184,204 @@ const addMessageToChat = async (req, res) => {
     return res.status(500).json({ error: 'Mesaj eklenemedi' });
   }
 };
+
+function normalizeMemoryText(text = '') {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c');
+}
+
+function uniqueLimit(existing = [], incoming = [], limit = 8) {
+  const set = new Set([
+    ...(existing || []).map((e) => String(e).trim()).filter(Boolean),
+    ...(incoming || []).map((e) => String(e).trim()).filter(Boolean),
+  ]);
+
+  return [...set].slice(0, limit);
+}
+
+function extractPassiveMemorySignals(userText = '', favoriteProducts = []) {
+  const text = normalizeMemoryText(userText);
+
+  const brands = [];
+  const categories = [];
+  const colors = [];
+  const features = [];
+  let budgetRange = '';
+  let shoppingStyle = '';
+
+  const brandList = [
+    'apple',
+    'samsung',
+    'xiaomi',
+    'dyson',
+    'logitech',
+    'steelseries',
+    'razer',
+    'jbl',
+    'sony',
+    'nike',
+    'adidas',
+    'puma',
+    'zara',
+    'mango',
+    'lenovo',
+    'asus',
+    'msi',
+    'hp',
+  ];
+
+  for (const brand of brandList) {
+    if (text.includes(brand)) brands.push(brand);
+  }
+
+  const categoryMap = {
+    mouse: ['mouse', 'gaming mouse'],
+    kulaklik: ['kulaklik', 'headset', 'airpods'],
+    telefon: ['telefon', 'iphone', 'samsung'],
+    laptop: ['laptop', 'bilgisayar'],
+    ayakkabi: ['ayakkabi', 'sneaker'],
+    parfum: ['parfum'],
+    sac_bakim: ['sac', 'dyson', 'sac duzlestirici', 'airwrap'],
+    cilt_bakim: ['cilt', 'sivilce', 'siyah nokta', 'serum', 'krem'],
+  };
+
+  for (const [category, words] of Object.entries(categoryMap)) {
+    if (words.some((w) => text.includes(w))) {
+      categories.push(category);
+    }
+  }
+
+  const colorList = [
+    'siyah',
+    'beyaz',
+    'gri',
+    'mavi',
+    'lacivert',
+    'kirmizi',
+    'yesil',
+    'bej',
+    'kahverengi',
+    'pembe',
+    'mor',
+  ];
+
+  for (const color of colorList) {
+    if (text.includes(color)) colors.push(color);
+  }
+
+  const featureMap = {
+    kablosuz: ['kablosuz', 'wireless', 'bluetooth'],
+    gaming: ['gaming', 'oyuncu'],
+    premium: ['premium', 'kaliteli', 'ust seviye'],
+    fiyat_performans: ['fiyat performans', 'f/p', 'fp'],
+    hafif: ['hafif'],
+    dayanikli: ['dayanikli', 'saglam'],
+  };
+
+  for (const [feature, words] of Object.entries(featureMap)) {
+    if (words.some((w) => text.includes(w))) {
+      features.push(feature);
+    }
+  }
+
+  const priceMatches = text.match(/(\d{3,7})\s*(tl|₺|lira)?/g) || [];
+  if (priceMatches.length > 0) {
+    const values = priceMatches
+      .map((m) => parseInt(m.replace(/[^\d]/g, ''), 10))
+      .filter((n) => !isNaN(n) && n >= 100);
+
+    if (values.length === 1) {
+      budgetRange = `${values[0]} TL civarı`;
+    }
+
+    if (values.length >= 2) {
+      const sorted = values.sort((a, b) => a - b);
+      budgetRange = `${sorted[0]}-${sorted[sorted.length - 1]} TL arası`;
+    }
+  }
+
+  if (
+    text.includes('ucuz') ||
+    text.includes('uygun fiyat') ||
+    text.includes('fiyat performans')
+  ) {
+    shoppingStyle = 'Fiyat/performans odaklı';
+  }
+
+  if (
+    text.includes('premium') ||
+    text.includes('kaliteli') ||
+    text.includes('en iyi')
+  ) {
+    shoppingStyle = shoppingStyle
+      ? 'Hem kalite hem fiyat dengesine önem veriyor'
+      : 'Kalite odaklı';
+  }
+
+  for (const product of favoriteProducts || []) {
+    const pText = normalizeMemoryText(
+      `${product.name || ''} ${product.platform || ''}`
+    );
+
+    for (const brand of brandList) {
+      if (pText.includes(brand)) brands.push(brand);
+    }
+
+    for (const [category, words] of Object.entries(categoryMap)) {
+      if (words.some((w) => pText.includes(w))) {
+        categories.push(category);
+      }
+    }
+  }
+
+  return {
+    brands,
+    categories,
+    colors,
+    features,
+    budgetRange,
+    shoppingStyle,
+  };
+}
+
+async function updatePassiveUserMemory(userId, userText, favoriteProducts = []) {
+  try {
+    if (!userId || !userText) return;
+
+    const signals = extractPassiveMemorySignals(userText, favoriteProducts);
+
+    const user = await User.findById(userId).select(
+      'favoriteBrands favoriteCategories preferredColors preferredFeatures budgetRange shoppingStyle'
+    );
+
+    if (!user) return;
+
+    user.favoriteBrands = uniqueLimit(user.favoriteBrands, signals.brands, 10);
+    user.favoriteCategories = uniqueLimit(user.favoriteCategories, signals.categories, 10);
+    user.preferredColors = uniqueLimit(user.preferredColors, signals.colors, 8);
+    user.preferredFeatures = uniqueLimit(user.preferredFeatures, signals.features, 10);
+
+    if (signals.budgetRange) {
+      user.budgetRange = signals.budgetRange;
+    }
+
+    if (signals.shoppingStyle) {
+      user.shoppingStyle = signals.shoppingStyle;
+    }
+
+    await user.save();
+
+    console.log('PASSIVE MEMORY UPDATED:', userId);
+  } catch (err) {
+    console.log('PASSIVE MEMORY ERROR:', err.message);
+  }
+}
 
 const sendChatMessage = async (req, res) => {
   try {
@@ -210,7 +410,7 @@ const sendChatMessage = async (req, res) => {
         Chat.find({ userId: chat.userId }).sort({ updatedAt: -1 }).limit(10),
         Favorite.find({ userId: chat.userId }).sort({ createdAt: -1 }).limit(30),
         User.findById(chat.userId).select(
-          'shoeSize clothingSize height weight style gender onboardingCompleted'
+          'shoeSize clothingSize height weight style gender onboardingCompleted favoriteBrands favoriteCategories preferredColors preferredFeatures budgetRange shoppingStyle'
         ),
       ]);
     
@@ -301,6 +501,8 @@ catch (error) {
       sellerComparison: aiResult.sellerComparison || null,
       contextProduct: null,
     });
+
+    await updatePassiveUserMemory(chat.userId, userText, favoriteProducts);
 
     await chat.save();
 
