@@ -1320,6 +1320,18 @@ async function generateAnswer({
   const recentProducts = extractRecentProducts(previousMessages);
   const normalizedSearchedProducts = normalizeProducts(searchedProducts);
 
+  const passiveMemoryText = userProfile
+  ? `
+Pasif kullanıcı alışveriş hafızası:
+- Favori markalar: ${(userProfile.favoriteBrands || []).join(', ') || 'Yok'}
+- Favori kategoriler: ${(userProfile.favoriteCategories || []).join(', ') || 'Yok'}
+- Renk tercihleri: ${(userProfile.preferredColors || []).join(', ') || 'Yok'}
+- Özellik tercihleri: ${(userProfile.preferredFeatures || []).join(', ') || 'Yok'}
+- Bütçe eğilimi: ${userProfile.budgetRange || 'Yok'}
+- Alışveriş tarzı: ${userProfile.shoppingStyle || 'Yok'}
+`
+  : '';
+
   const answerPrompt = `
 Sen Shopi’sin. Kullanıcılara ürün bulma, karşılaştırma ve alışveriş kararlarında yardımcı olan akıllı ve samimi bir asistansın.
 Türkçe cevap ver.
@@ -1334,6 +1346,10 @@ Kurallar:
 - Eğer ürün döndürüyorsan her ürün için mutlaka "short_reason" alanı üretmek zorundasın.
 - short_reason her ürün için farklı olsun.
 - short_reason doğal, spesifik ve kullanıcı isteğine uygun olsun.
+- Pasif kullanıcı alışveriş hafızasını sadece ürün önerisi yaparken yardımcı sinyal olarak kullan.
+- Hafıza bilgisi, kullanıcının son mesajının önüne geçmesin.
+- Kullanıcı açıkça sormadıkça hafıza bilgilerini doğrudan söyleme.
+- Hafıza sadece marka, renk, bütçe, kategori ve özellik tercihlerini daha iyi seçmek için kullanılmalı.
 - Kullanıcının davranışsal özeti, genel ürün önerilerinde beden/boy/kilo gibi profil alanlarından daha önceliklidir.
 - Kullanıcı kendi ilgi alanlarını sormuyorsa profil bilgilerini doğrudan söyleme.
 - Genel önerilerde önce davranışsal tercihleri kullan, profil bilgilerini sadece gerekiyorsa ince ayar olarak kullan.
@@ -1406,6 +1422,7 @@ ${preferenceSummary}
 
 Kullanıcı profili:
 ${profileText}
+${passiveMemoryText}
 
 Önceki ürünler:
 ${JSON.stringify(recentProducts, null, 2)}
