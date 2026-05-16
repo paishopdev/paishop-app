@@ -268,11 +268,37 @@ function removeDuplicateProducts(products = []) {
   const output = [];
 
   for (const product of products || []) {
+    const normalizedName = normalizeProductText(product.name || '');
+
+    const compactName = normalizedName
+      .replace(/\b(urun|kampanya|indirim|firsat|fırsat|orijinal|yeni)\b/g, '')
+      .replace(/\b(renk|beden|adet|stok)\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const priceKey = String(product.price || '')
+      .replace(/[^\d]/g, '')
+      .slice(0, 6);
+
+    const platformKey = normalizeProductText(product.platform || '');
+
     const key =
       product.link ||
-      `${productFingerprint(product)}-${normalizeProductText(product.platform || '')}`;
+      `${compactName.slice(0, 70)}-${priceKey}-${platformKey}`;
 
     if (!key || seen.has(key)) continue;
+
+    const tooSimilar = output.some((existing) => {
+      const existingName = normalizeProductText(existing.name || '');
+      if (!existingName || !compactName) return false;
+
+      return (
+        existingName.includes(compactName.slice(0, 45)) ||
+        compactName.includes(existingName.slice(0, 45))
+      );
+    });
+
+    if (tooSimilar) continue;
 
     seen.add(key);
     output.push(product);
@@ -366,8 +392,50 @@ function applyProductQualityPipeline(products = [], cleanQuery = '') {
   return cleaned;
 }
 
+function optimizeSearchQuery(query = '') {
+  const text = normalizeProductText(query);
+
+  const removeWords = [
+    'bana',
+    'bir',
+    'guzel',
+    'iyi',
+    'en',
+    'icin',
+    'öner',
+    'oner',
+    'onerir',
+    'misin',
+    'lazim',
+    'lazım',
+    'istiyorum',
+    'ariyorum',
+    'arıyorum',
+    'bul',
+    'goster',
+    'göster',
+    'listele',
+    'tavsiye',
+    'urun',
+    'ürün',
+  ];
+
+  const words = text
+    .split(' ')
+    .filter(Boolean)
+    .filter((w) => !removeWords.includes(w));
+
+  const optimized = words.join(' ').trim();
+
+  return optimized.length >= 3 ? optimized : text;
+}
+
 async function searchProducts(query, type = 'search') {
   let cleanQuery = String(query || '').trim().toLowerCase();
+
+  if (type === 'search') {
+    cleanQuery = optimizeSearchQuery(cleanQuery);
+  }
 
   if (!cleanQuery) return [];
 
