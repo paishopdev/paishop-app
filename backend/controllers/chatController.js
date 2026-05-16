@@ -1,6 +1,11 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 const Favorite = require('../models/Favorite');
+const OpenAI = require('openai');
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 function buildCrossChatMemory(currentChat, allChats = []) {
   const currentChatId = String(currentChat?._id || '');
 
