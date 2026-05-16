@@ -120,8 +120,8 @@ async function searchSerperShopping(query) {
       platform: item.source || item.seller || item.merchant || 'Unknown store',
       image: extractSerperImage(item),
       link: item.link || item.product_link || item.url || '',
-      rating: parseRating(item.rating),
-      reviews: parseReviewCount(item.ratingCount),
+      rating: null,
+      reviews: null,
       short_reason: '',
     }));
 }

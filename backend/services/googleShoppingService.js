@@ -85,8 +85,8 @@ async function searchGoogleShopping(query) {
       platform: item.source || 'Unknown store',
       image: rawImage || '',
       link: item.product_link || item.link || '',
-      rating: item.rating || null,
-      reviews: parseReviewCount(item.reviews),
+      rating: null,
+      reviews: null,
       short_reason: '',
     };
   });

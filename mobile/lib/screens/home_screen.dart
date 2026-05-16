@@ -2118,23 +2118,23 @@ List<Widget> buildComparisonDetails(
           : 0,
     },
     {
-      "title": "Yorum",
-      "v1": p1["reviews"],
-      "v2": p2["reviews"],
-      "better": compareNumber(p1["reviews"], p2["reviews"]),
-    },
-    {
-      "title": "Puan",
-      "v1": p1["rating"],
-      "v2": p2["rating"],
-      "better": compareNumber(p1["rating"], p2["rating"]),
-    },
-    {
-      "title": "Güven",
-      "v1": p1["trustScore"] != null ? "${p1["trustScore"]}/10" : null,
-      "v2": p2["trustScore"] != null ? "${p2["trustScore"]}/10" : null,
-      "better": compareNumber(p1["trustScore"], p2["trustScore"]),
-    },
+  "title": "Görsel",
+  "v1": (p1["image"] ?? "").toString().isNotEmpty ? "Var" : "Yok",
+  "v2": (p2["image"] ?? "").toString().isNotEmpty ? "Var" : "Yok",
+  "better": ((p1["image"] ?? "").toString().isNotEmpty &&
+          (p2["image"] ?? "").toString().isNotEmpty)
+      ? 3
+      : ((p1["image"] ?? "").toString().isNotEmpty ? 1 : 2),
+},
+{
+  "title": "Ürün Notu",
+  "v1": (p1["short_reason"] ?? "").toString().isNotEmpty ? "Var" : "Yok",
+  "v2": (p2["short_reason"] ?? "").toString().isNotEmpty ? "Var" : "Yok",
+  "better": ((p1["short_reason"] ?? "").toString().isNotEmpty &&
+          (p2["short_reason"] ?? "").toString().isNotEmpty)
+      ? 3
+      : ((p1["short_reason"] ?? "").toString().isNotEmpty ? 1 : 2),
+},
   ];
 
   return rows.map((row) {
