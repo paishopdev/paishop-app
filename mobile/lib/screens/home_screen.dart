@@ -581,24 +581,19 @@ void showImageSourcePicker() {
                 ),
               ),
               const SizedBox(height: 18),
+
               const Text(
-                "Görsel ekle",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+                "Görsel ile ürün ara",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               Text(
-                "İstersen yeni fotoğraf çek ya da galerinden görsel seç.",
+                "Ürün fotoğrafı çekebilir ya da galerinden görsel seçebilirsin.",
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.4,
-                  color: Colors.grey.shade700,
-                ),
+                style: TextStyle(fontSize: 13, height: 1.4, color: Colors.grey.shade700),
               ),
               const SizedBox(height: 18),
+
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 6),
                 leading: Container(
@@ -608,78 +603,65 @@ void showImageSourcePicker() {
                     color: const Color(0xFF6C63FF).withOpacity(0.10),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.photo_camera_outlined,
-                    color: Color(0xFF6C63FF),
-                  ),
+                  child: const Icon(Icons.photo_camera_outlined, color: Color(0xFF6C63FF)),
                 ),
-                title: const Text(
-                  "Kamera ile çek",
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                subtitle: const Text("Anlık fotoğraf çekip ürün ara"),
+                title: const Text("Kamera ile ürün ara", style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text("Anlık ürün fotoğrafı çek"),
                 onTap: () {
                   Navigator.pop(context);
                   pickImageAndSearch();
                 },
               ),
+
               const SizedBox(height: 6),
 
-ListTile(
-  contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-  leading: Container(
-    width: 42,
-    height: 42,
-    decoration: BoxDecoration(
-      color: const Color(0xFF6C63FF).withOpacity(0.10),
-      shape: BoxShape.circle,
-    ),
-    child: const Icon(
-      Icons.photo_library_outlined,
-      color: Color(0xFF6C63FF),
-    ),
-  ),
-  title: const Text(
-    "Galeriden seç",
-    style: TextStyle(fontWeight: FontWeight.w700),
-  ),
-  subtitle: const Text(
-    "En fazla 3 görsel seçebilirsin",
-  ),
-  onTap: () {
-    Navigator.pop(context);
-    pickImagesFromGallery();
-  },
-),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF).withOpacity(0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.photo_library_outlined, color: Color(0xFF6C63FF)),
+                ),
+                title: const Text("Galeriden ürün seç", style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text("En fazla 3 ürün görseli seçebilirsin"),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickImagesFromGallery();
+                },
+              ),
 
-const SizedBox(height: 6),
+              const SizedBox(height: 18),
+              Divider(color: Colors.grey.shade200),
+              const SizedBox(height: 10),
 
-ListTile(
-  contentPadding: const EdgeInsets.symmetric(horizontal: 6),
-  leading: Container(
-    width: 42,
-    height: 42,
-    decoration: BoxDecoration(
-      color: Colors.pink.withOpacity(0.10),
-      shape: BoxShape.circle,
-    ),
-    child: const Icon(
-      Icons.face_retouching_natural_outlined,
-      color: Colors.pink,
-    ),
-  ),
-  title: const Text(
-    "Cilt analizi yap",
-    style: TextStyle(fontWeight: FontWeight.w700),
-  ),
-  subtitle: const Text(
-    "AI destekli cilt bakım önerileri al",
-  ),
-  onTap: () {
-    Navigator.pop(context);
-    pickSkinImageAndAnalyze();
-  },
-),
+              const Text(
+                "AI Cilt Bakım Asistanı",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.pink.withOpacity(0.10),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.face_retouching_natural_outlined, color: Colors.pink),
+                ),
+                title: const Text("Cilt analizi yap", style: TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: const Text("Selfie çek, AI destekli bakım önerileri al"),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickSkinImageAndAnalyze();
+                },
+              ),
             ],
           ),
         ),
@@ -687,7 +669,6 @@ ListTile(
     },
   );
 }
-
 void stopListening() {
   speech.stop();
   setState(() {
