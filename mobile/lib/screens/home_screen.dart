@@ -2104,7 +2104,7 @@ List<Widget> buildComparisonDetails(
   Map<String, dynamic> p1,
   Map<String, dynamic> p2,
 ) {
-  List<Map<String, dynamic>> rows = [
+  final List<Map<String, dynamic>> rows = [
     {
       "title": "Fiyat",
       "v1": p1["price"],
@@ -2112,10 +2112,13 @@ List<Widget> buildComparisonDetails(
       "better": comparePrice(p1["price"], p2["price"]),
     },
     {
+      "title": "Mağaza",
+      "v1": p1["platform"],
+      "v2": p2["platform"],
       "better": ((p1["platform"] ?? "").toString().isNotEmpty &&
-        (p2["platform"] ?? "").toString().isNotEmpty)
-    ? 3
-    : 0,
+              (p2["platform"] ?? "").toString().isNotEmpty)
+          ? 3
+          : 0,
     },
     {
       "title": "Yorum",
@@ -2130,30 +2133,41 @@ List<Widget> buildComparisonDetails(
       "better": compareNumber(p1["rating"], p2["rating"]),
     },
     {
-  "title": "Güven",
-  "v1": p1["trustScore"] != null ? "${p1["trustScore"]}/10" : null,
-  "v2": p2["trustScore"] != null ? "${p2["trustScore"]}/10" : null,
-  "better": compareNumber(p1["trustScore"], p2["trustScore"]),
-},
+      "title": "Güven",
+      "v1": p1["trustScore"] != null ? "${p1["trustScore"]}/10" : null,
+      "v2": p2["trustScore"] != null ? "${p2["trustScore"]}/10" : null,
+      "better": compareNumber(p1["trustScore"], p2["trustScore"]),
+    },
   ];
 
   return rows.map((row) {
-    final better = row["better"];
+    final int better = row["better"] is int ? row["better"] as int : 0;
+
+    int leftStatus = 0;
+    int rightStatus = 0;
+
+    if (better == 1) {
+      leftStatus = 1;
+      rightStatus = -1;
+    } else if (better == 2) {
+      leftStatus = -1;
+      rightStatus = 1;
+    } else if (better == 3) {
+      leftStatus = 1;
+      rightStatus = 1;
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           Expanded(
-  child: buildCompareValue(
-    row["v1"],
-    better == 1 || better == 3 ? 1 : 2,
-  ),
-),
+            child: buildCompareValue(row["v1"], leftStatus),
+          ),
           Expanded(
             child: Center(
               child: Text(
-                row["title"],
+                (row["title"] ?? "").toString(),
                 style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
@@ -2162,64 +2176,55 @@ List<Widget> buildComparisonDetails(
             ),
           ),
           Expanded(
-  child: buildCompareValue(
-    row["v2"],
-    better == 2 || better == 3 ? 1 : 2,
-  ),
-),
+            child: buildCompareValue(row["v2"], rightStatus),
+          ),
         ],
       ),
     );
   }).toList();
 }
-Widget buildCompareValue(dynamic value, dynamic better) {
-  final bool isGood = better == true || better == 1 || better == 3;
-  final bool isNeutral = better == 0 || better == null;
+Widget buildCompareValue(dynamic value, int status) {
+  final text = value == null ||
+          value.toString().trim().isEmpty ||
+          value.toString() == "null"
+      ? "Veri yok"
+      : value.toString();
 
-  return TweenAnimationBuilder<double>(
-    tween: Tween(begin: 0.8, end: 1),
-    duration: const Duration(milliseconds: 280),
-    curve: Curves.easeOutBack,
-    builder: (context, animValue, child) {
-      return Transform.scale(
-        scale: animValue,
-        child: child,
-      );
-    },
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          isNeutral
-              ? Icons.remove_circle_outline
-              : isGood
-                  ? Icons.check_circle
-                  : Icons.remove_circle,
-          color: isNeutral
-              ? Colors.grey
-              : isGood
-                  ? Colors.green
-                  : Colors.redAccent,
-          size: 16,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            (value == null ||
-                    value.toString().trim().isEmpty ||
-                    value.toString() == "null")
-                ? "Veri yok"
-                : value.toString(),
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black87,
-              fontWeight: FontWeight.w600,
-            ),
+  final bool hasData = text != "Veri yok";
+
+  final IconData icon = !hasData
+      ? Icons.remove_circle_outline
+      : status == 1
+          ? Icons.check_circle
+          : status == -1
+              ? Icons.remove_circle
+              : Icons.remove_circle_outline;
+
+  final Color color = !hasData
+      ? Colors.grey
+      : status == 1
+          ? Colors.green
+          : status == -1
+              ? Colors.redAccent
+              : Colors.grey;
+
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Icon(icon, color: color, size: 16),
+      const SizedBox(width: 4),
+      Flexible(
+        child: Text(
+          text,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
           ),
         ),
-      ],
-    ),
+      ),
+    ],
   );
 }
 int comparePrice(String p1, String p2) {
