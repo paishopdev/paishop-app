@@ -197,4 +197,37 @@ static Future<Map<String, dynamic>> sendImageMessage({
     throw Exception("Görsel bağlamlı arama başarısız: ${response.body}");
   }
 }
+static Future<Map<String, dynamic>> sendSkinAnalysisMessage({
+  required String chatId,
+  required XFile imageFile,
+}) async {
+  final uri = Uri.parse("$baseUrl/$chatId/skin-analysis");
+  final request = http.MultipartRequest("POST", uri);
+
+  final bytes = await imageFile.readAsBytes();
+
+  final mimeType =
+      lookupMimeType(imageFile.name, headerBytes: bytes) ?? 'image/jpeg';
+
+  request.files.add(
+    http.MultipartFile.fromBytes(
+      'image',
+      bytes,
+      filename: imageFile.name.isNotEmpty ? imageFile.name : 'skin.jpg',
+      contentType: MediaType.parse(mimeType),
+    ),
+  );
+
+  final streamedResponse = await request.send();
+  final response = await http.Response.fromStream(streamedResponse);
+
+  print("SKIN ANALYSIS STATUS: ${response.statusCode}");
+  print("SKIN ANALYSIS BODY: ${response.body}");
+
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception("Cilt analizi başarısız: ${response.body}");
+  }
+}
 }

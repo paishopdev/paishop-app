@@ -465,6 +465,99 @@ Future<void> sendGalleryImagesWithPrompt() async {
     });
   }
 }
+
+Future<void> pickSkinImageAndAnalyze() async {
+  try {
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    String chatIdForRequest = currentChatId;
+
+    if (chatIdForRequest.isEmpty) {
+      await createNewChatIfNeeded("Cilt analizi");
+      chatIdForRequest = currentChatId;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: "Cilt analizi için fotoğraf gönderdim.",
+          isUser: true,
+          galleryImages: [image],
+        ),
+      );
+      loading = true;
+      loadingMode = 'image';
+    });
+
+    scrollToAssistantStart();
+
+    final result = await ChatService.sendSkinAnalysisMessage(
+      chatId: chatIdForRequest,
+      imageFile: image,
+    );
+
+    final assistantText =
+        (result["assistantText"] ?? "").toString().trim();
+
+    final productsJson =
+        result["products"] is List ? result["products"] as List : [];
+
+    final products = productsJson
+        .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
+        .toList();
+
+    final actions = result["actions"] is List
+        ? List<String>.from(result["actions"])
+        : <String>[];
+
+    if (!mounted) return;
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: assistantText.isNotEmpty
+              ? assistantText
+              : "Cilt görünümüne uygun bakım önerileri hazırladım.",
+          isUser: false,
+          products: products,
+          actions: actions,
+        ),
+      );
+    });
+
+    scrollToAssistantStart();
+    await loadChatHistory();
+    await saveChatLastSeen(chatIdForRequest);
+  } catch (e) {
+    debugPrint("SKIN ANALYSIS ERROR: $e");
+
+    if (!mounted) return;
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: "Cilt analizinde bir sorun oldu. Daha net ışıkta tekrar deneyebilirsin.",
+          isUser: false,
+        ),
+      );
+    });
+  } finally {
+    if (!mounted) return;
+
+    setState(() {
+      loading = false;
+      loadingMode = 'products';
+    });
+  }
+}
+
 void showImageSourcePicker() {
   showModalBottomSheet(
     context: context,
@@ -545,16 +638,43 @@ void showImageSourcePicker() {
                     color: Color(0xFF6C63FF),
                   ),
                 ),
-                title: const Text(
-                  "Galeriden seç",
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                subtitle: const Text("En fazla 3 görsel seçebilirsin"),
-                onTap: () {
-                  Navigator.pop(context);
-                  pickImagesFromGallery();
-                },
-              ),
+              title: const Text(
+  "Galeriden seç",
+  style: TextStyle(fontWeight: FontWeight.w700),
+),
+subtitle: const Text("En fazla 3 görsel seçebilirsin"),
+onTap: () {
+  Navigator.pop(context);
+  pickImagesFromGallery();
+},
+),
+
+const SizedBox(height: 6),
+
+ListTile(
+  contentPadding: const EdgeInsets.symmetric(horizontal: 6),
+  leading: Container(
+    width: 42,
+    height: 42,
+    decoration: BoxDecoration(
+      color: Colors.pink.withOpacity(0.10),
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(
+      Icons.face_retouching_natural_outlined,
+      color: Colors.pink,
+    ),
+  ),
+  title: const Text(
+    "Cilt analizi yap",
+    style: TextStyle(fontWeight: FontWeight.w700),
+  ),
+  subtitle: const Text("AI destekli cilt bakım önerileri al"),
+  onTap: () {
+    Navigator.pop(context);
+    pickSkinImageAndAnalyze();
+  },
+),
             ],
           ),
         ),
