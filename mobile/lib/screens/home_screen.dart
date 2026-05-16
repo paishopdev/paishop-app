@@ -1947,8 +1947,14 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
   final image = (item["image"] ?? "").toString();
   final platform = (item["platform"] ?? "").toString();
   final badge = (item["badge"] ?? "").toString();
-  final trustScore = item["trustScore"];
   final fitFor = (item["fitFor"] ?? "").toString();
+  final pros = item["pros"] is List
+    ? List<String>.from(item["pros"])
+    : <String>[];
+
+final cons = item["cons"] is List
+    ? List<String>.from(item["cons"])
+    : <String>[];
 
   return TweenAnimationBuilder<double>(
   tween: Tween(begin: 0.96, end: 1),
@@ -2064,20 +2070,6 @@ if (badge.isNotEmpty)
     ),
   ),
 
-if (trustScore != null) ...[
-  const SizedBox(height: 6),
-  Text(
-    "Güven skoru: $trustScore/10",
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-    style: TextStyle(
-      color: Colors.grey.shade700,
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-    ),
-  ),
-],
-
 if (fitFor.isNotEmpty) ...[
   const SizedBox(height: 6),
   Text(
@@ -2089,6 +2081,55 @@ if (fitFor.isNotEmpty) ...[
       fontSize: 10.8,
       height: 1.25,
       fontWeight: FontWeight.w500,
+    ),
+  ),
+],
+if (pros.isNotEmpty) ...[
+  const SizedBox(height: 8),
+  ...pros.take(1).map(
+    (e) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.check_circle_outline, size: 13, color: Colors.green),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            e,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+],
+
+if (cons.isNotEmpty) ...[
+  const SizedBox(height: 5),
+  ...cons.take(1).map(
+    (e) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.info_outline, size: 13, color: Colors.orange),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            e,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     ),
   ),
 ],

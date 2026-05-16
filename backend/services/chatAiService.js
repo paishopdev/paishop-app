@@ -737,56 +737,48 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
   )
     .slice(0, 4)
     .map((p, index) => {
-      const rating = Number(p.rating) || null;
-      const reviews = Number(p.reviews) || null;
+      const priceValue = parsePriceValue(p.price);
+      const hasPrice = priceValue !== Number.MAX_SAFE_INTEGER;
+      const hasImage = Boolean(p.image || p.thumbnail || p.productImage);
+      const hasStore = Boolean(p.platform);
+      const hasProductNote = Boolean(p.short_reason);
     
-      let badge = '';
-      let pros = [];
-      let cons = [];
-      let fitFor = '';
-      let trustScore = null;
+      let badge = index === 0 ? 'Önerilen seçim' : '';
+      const pros = [];
+      const cons = [];
     
-      if (rating && rating >= 4.5) {
-        badge = 'En yüksek puan';
+      if (hasPrice) {
+        pros.push('Fiyat bilgisi mevcut');
+      } else {
+        cons.push('Fiyat bilgisi net değil');
       }
     
-      if (reviews && reviews >= 1000) {
-        badge = badge || 'En popüler';
+      if (hasStore) {
+        pros.push('Satıcı / mağaza bilgisi var');
+      } else {
+        cons.push('Satıcı bilgisi eksik');
       }
     
-      if (index === 0 && !badge) {
-        badge = 'Önerilen seçim';
+      if (hasImage) {
+        pros.push('Ürün görseli mevcut');
+      } else {
+        cons.push('Görsel bilgisi eksik');
       }
     
-      if (rating && rating >= 4.3) {
-        pros.push('Kullanıcı memnuniyeti yüksek');
+      if (hasProductNote) {
+        pros.push('Kullanıcı isteğine göre açıklama üretildi');
       }
     
-      if (reviews && reviews >= 500) {
-        pros.push('Çok fazla kullanıcı yorumu var');
+      if (priceValue !== Number.MAX_SAFE_INTEGER && index === 0) {
+        badge = 'Genel denge iyi';
       }
     
-      if (!reviews || reviews < 20) {
-        cons.push('Yeterince kullanıcı yorumu bulunmuyor');
-      }
-    
-      if (rating && rating < 4) {
-        cons.push('Puan ortalaması rakiplerinden düşük');
-      }
-    
-      if (rating) {
-        const reviewBoost = reviews ? Math.log10(reviews + 1) : 0.4;
-      
-        trustScore = Math.min(
-          10,
-          Number(((rating * 2) + reviewBoost).toFixed(1))
-        );
-      }
-    
-      fitFor =
-        rating && rating >= 4.5
-          ? 'Uzun süreli kullanım ve güvenli tercih isteyenler için uygun'
-          : 'Fiyat/performans odaklı kullanıcılar için uygun';
+      const fitFor =
+        index === 0
+          ? 'Genel denge ve ulaşılabilirlik açısından daha mantıklı görünüyor'
+          : hasPrice
+            ? 'Alternatif fiyat ve mağaza seçeneği arayanlar için uygun'
+            : 'Ek bilgi kontrolü yaparak değerlendirmek daha doğru olur';
     
       return {
         name: p.name || '',
@@ -795,13 +787,13 @@ function buildComparisonData(answer, finalProducts = [], userMessage = '') {
         image: p.image || p.thumbnail || p.productImage || '',
         link: p.link || '',
         short_reason: p.short_reason || '',
-        rating,
-        reviews,
+        rating: null,
+        reviews: null,
         badge,
-        pros,
-        cons,
+        pros: pros.slice(0, 2),
+        cons: cons.slice(0, 2),
         fitFor,
-        trustScore,
+        trustScore: null,
       };
     });
 
