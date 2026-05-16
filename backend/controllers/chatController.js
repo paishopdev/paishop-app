@@ -619,6 +619,157 @@ const searchByImage = async (req, res) => {
   }
 };
 
+const analyzeSkinImage = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Görsel zorunlu' });
+    }
+
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json({ error: 'Sohbet bulunamadı' });
+    }
+
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const base64Image = req.file.buffer.toString('base64');
+
+    const response = await client.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `
+Bu bir cilt analiz isteği.
+
+Kurallar:
+- Tıbbi teşhis koyma.
+- Kesin ifadeler kullanma.
+- "Görünüm olabilir", "hafif görünüyor" gibi yumuşak ifadeler kullan.
+- Türkçe cevap ver.
+- Kısa ve net yaz.
+- En fazla 4 kısa madde ver.
+- Kullanıcıyı korkutma.
+
+JSON formatı:
+{
+  "analysis": [
+    "kısa analiz maddesi"
+  ],
+  "searchQuery": "ürün arama sorgusu"
+}
+
+Örnek:
+{
+  "analysis": [
+    "Alın bölgesinde hafif yağlanma görünümü var.",
+    "Küçük sivilce görünümü dikkat çekiyor."
+  ],
+  "searchQuery": "sivilce karşıtı cilt bakım ürünleri"
+}
+              `,
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${base64Image}`,
+              },
+            },
+          ],
+        },
+      ],
+      temperature: 0.4,
+    });
+
+    const text = response.choices[0].message.content || '{}';
+    const parsed = safeParseJson(text);
+
+    const analysis = Array.isArray(parsed?.analysis)
+      ? parsed.analysis
+      : [];
+
+    const searchQuery =
+      parsed?.searchQuery ||
+      'cilt bakım ürünleri';
+
+    const rawResults = await searchProducts(searchQuery);
+
+    const products = (rawResults || []).slice(0, 8).map((item, index) => ({
+      index: index + 1,
+      name: item.name || '',
+      price: item.price || '',
+      platform: item.platform || '',
+      image: item.image || '',
+      link: item.link || '',
+      rating: null,
+      reviews: null,
+      short_reason:
+        'Cilt analizi sonucuna uygun seçeneklerden biri olarak öne çıktı.',
+    }));
+
+    const assistantText =
+      analysis.length > 0
+        ? analysis.join(' ')
+        : 'Cilt görünümüne uygun bakım ürünleri buldum.';
+
+    chat.messages.push({
+      role: 'user',
+      text: 'Cilt analizi yapıldı',
+      products: [],
+      actions: [],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      sellerComparison: null,
+      imageAttachments: [`data:${mimeType};base64,${base64Image}`],
+      contextProduct: null,
+    });
+
+    chat.messages.push({
+      role: 'assistant',
+      text: assistantText,
+      products,
+      actions: [
+        'Daha uygun fiyatlılar',
+        'Benzer bakım ürünleri',
+      ],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      sellerComparison: null,
+      contextProduct: null,
+    });
+
+    await chat.save();
+
+    return res.json({
+      assistantText,
+      analysis,
+      products,
+      actions: [
+        'Daha uygun fiyatlılar',
+        'Benzer bakım ürünleri',
+      ],
+      comparison: null,
+      detailCard: null,
+      reviewCard: null,
+      sellerComparison: null,
+      chat,
+    });
+  } catch (error) {
+    console.error('Skin analysis error:', error);
+
+    return res.status(500).json({
+      error: 'Cilt analizi başarısız',
+    });
+  }
+};
+
 const searchByImageContext = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -792,4 +943,5 @@ module.exports = {
   sendChatMessage,
   searchByImage,
   searchByImageContext,
+  analyzeSkinImage,
 };
