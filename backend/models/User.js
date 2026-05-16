@@ -54,6 +54,35 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    favoriteBrands: {
+      type: [String],
+      default: [],
+    },
+    
+    favoriteCategories: {
+      type: [String],
+      default: [],
+    },
+    
+    preferredColors: {
+      type: [String],
+      default: [],
+    },
+    
+    preferredFeatures: {
+      type: [String],
+      default: [],
+    },
+    
+    budgetRange: {
+      type: String,
+      default: '',
+    },
+    
+    shoppingStyle: {
+      type: String,
+      default: '',
+    },
 
     // 🔥 ONBOARDING DURUMU
     onboardingCompleted: {
