@@ -315,6 +315,12 @@ function productQualityScore(product = {}, cleanQuery = '') {
 }
 
 function applyProductQualityPipeline(products = [], cleanQuery = '') {
+  const normalizedQuery = normalizeProductText(cleanQuery);
+
+  const queryWords = normalizedQuery
+    .split(' ')
+    .filter((w) => w.length >= 3);
+
   let cleaned = (products || [])
     .map((product) => ({
       ...product,
@@ -324,6 +330,26 @@ function applyProductQualityPipeline(products = [], cleanQuery = '') {
       if (!product.name) return false;
       if (!product.link) return false;
       if (!product.price || product.price === 'Fiyat yok') return false;
+
+      const combinedText = normalizeProductText(`
+        ${product.name || ''}
+        ${product.platform || ''}
+        ${product.short_reason || ''}
+      `);
+
+      const matchedWords = queryWords.filter((w) =>
+        combinedText.includes(w)
+      );
+
+      const relevanceRatio =
+        queryWords.length > 0
+          ? matchedWords.length / queryWords.length
+          : 1;
+
+      if (queryWords.length >= 2 && relevanceRatio < 0.34) {
+        return false;
+      }
+
       return true;
     });
 
