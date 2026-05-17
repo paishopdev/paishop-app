@@ -3459,36 +3459,43 @@ void showAttachmentActions() {
               ),
               const SizedBox(height: 12),
 
-ListTile(
-  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-  leading: Container(
-    width: 54,
-    height: 54,
-    decoration: BoxDecoration(
-      color: Colors.pink.withOpacity(0.12),
-      shape: BoxShape.circle,
-    ),
-    child: const Icon(
-      Icons.face_retouching_natural_outlined,
-      color: Colors.pink,
-      size: 28,
-    ),
+Container(
+  decoration: BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(color: Colors.pink.withOpacity(0.22)),
   ),
-  title: const Text(
-    "Cilt analizi yap",
-    style: TextStyle(
-      fontWeight: FontWeight.w800,
-      fontSize: 16,
+  child: ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+    leading: Container(
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        color: Colors.pink.withOpacity(0.12),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.face_retouching_natural_outlined,
+        color: Colors.pink,
+        size: 28,
+      ),
     ),
+    title: const Text(
+      "Cilt analizi yap",
+      style: TextStyle(
+        fontWeight: FontWeight.w800,
+        fontSize: 16,
+      ),
+    ),
+    subtitle: const Text(
+      "Selfie çek, AI destekli bakım önerileri al",
+    ),
+    trailing: const Icon(Icons.chevron_right_rounded),
+    onTap: () {
+      Navigator.pop(context);
+      pickSkinImageAndAnalyze();
+    },
   ),
-  subtitle: const Text(
-    "Selfie çek, AI destekli bakım önerileri al",
-  ),
-  trailing: const Icon(Icons.chevron_right_rounded),
-  onTap: () {
-    Navigator.pop(context);
-    pickSkinImageAndAnalyze();
-  },
 ),
             ],
           ),

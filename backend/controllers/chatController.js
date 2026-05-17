@@ -706,80 +706,64 @@ JSON formatı:
     });
 
     const text = response.choices[0].message.content || '{}';
-    const parsed = safeParseJson(text);
+const parsed = safeParseJson(text);
 
-    const analysis = Array.isArray(parsed?.analysis)
-      ? parsed.analysis
-      : [];
+const analysis = Array.isArray(parsed?.analysis)
+  ? parsed.analysis
+  : [];
 
-    const searchQuery =
-      parsed?.searchQuery ||
-      'cilt bakım ürünleri';
+const searchQuery =
+  parsed?.searchQuery ||
+  'cilt bakım ürünleri';
 
-    const rawResults = await searchProducts(searchQuery);
+// Şimdilik ürün listelemeyi kapatıyoruz.
+// Sonra bunu daha kaliteli ürün arama sistemiyle geri açacağız.
+const products = [];
 
-    const products = (rawResults || []).slice(0, 8).map((item, index) => ({
-      index: index + 1,
-      name: item.name || '',
-      price: item.price || '',
-      platform: item.platform || '',
-      image: item.image || '',
-      link: item.link || '',
-      rating: null,
-      reviews: null,
-      short_reason:
-        'Cilt analizi sonucuna uygun seçeneklerden biri olarak öne çıktı.',
-    }));
+const assistantText =
+  analysis.length > 0
+    ? `Bu tıbbi teşhis değildir; yalnızca fotoğraftaki görünüme göre bakım önerisidir. ${analysis.join(' ')}`
+    : 'Bu tıbbi teşhis değildir; yalnızca fotoğraftaki görünüme göre bakım önerisidir. Cilt görünümüne uygun bakım önerileri hazırladım.';
 
-    const assistantText =
-      analysis.length > 0
-        ? analysis.join(' ')
-        : 'Cilt görünümüne uygun bakım ürünleri buldum.';
+chat.messages.push({
+  role: 'user',
+  text: 'Cilt analizi yapıldı',
+  products: [],
+  actions: [],
+  comparison: null,
+  detailCard: null,
+  reviewCard: null,
+  sellerComparison: null,
+  imageAttachments: [`data:${mimeType};base64,${base64Image}`],
+  contextProduct: null,
+});
 
-    chat.messages.push({
-      role: 'user',
-      text: 'Cilt analizi yapıldı',
-      products: [],
-      actions: [],
-      comparison: null,
-      detailCard: null,
-      reviewCard: null,
-      sellerComparison: null,
-      imageAttachments: [`data:${mimeType};base64,${base64Image}`],
-      contextProduct: null,
-    });
+chat.messages.push({
+  role: 'assistant',
+  text: assistantText,
+  products,
+  actions: [],
+  comparison: null,
+  detailCard: null,
+  reviewCard: null,
+  sellerComparison: null,
+  contextProduct: null,
+});
 
-    chat.messages.push({
-      role: 'assistant',
-      text: assistantText,
-      products,
-      actions: [
-        'Daha uygun fiyatlılar',
-        'Benzer bakım ürünleri',
-      ],
-      comparison: null,
-      detailCard: null,
-      reviewCard: null,
-      sellerComparison: null,
-      contextProduct: null,
-    });
+await chat.save();
 
-    await chat.save();
-
-    return res.json({
-      assistantText,
-      analysis,
-      products,
-      actions: [
-        'Daha uygun fiyatlılar',
-        'Benzer bakım ürünleri',
-      ],
-      comparison: null,
-      detailCard: null,
-      reviewCard: null,
-      sellerComparison: null,
-      chat,
-    });
+return res.json({
+  assistantText,
+  analysis,
+  searchQuery,
+  products,
+  actions: [],
+  comparison: null,
+  detailCard: null,
+  reviewCard: null,
+  sellerComparison: null,
+  chat,
+});
   } catch (error) {
     console.error('Skin analysis error:', error);
 
