@@ -78,6 +78,7 @@ bool isListening = false;
   List<ChatMessage> messages = [];
   List<ChatItem> chatHistory = [];
   List<XFile> selectedGalleryImages = [];
+  XFile? selectedSkinImage;
 
   Map<String, String> chatLastSeenMap = {};
 
@@ -474,86 +475,26 @@ Future<void> pickSkinImageAndAnalyze() async {
     );
 
     if (image == null) return;
-
-    String chatIdForRequest = currentChatId;
-
-    if (chatIdForRequest.isEmpty) {
-      await createNewChatIfNeeded("Cilt analizi");
-      chatIdForRequest = currentChatId;
-    }
-
     if (!mounted) return;
 
     setState(() {
-      messages.add(
-        ChatMessage(
-          text: "Cilt analizi için fotoğraf gönderdim.",
-          isUser: true,
-          galleryImages: [image],
-        ),
-      );
-      loading = true;
-      loadingMode = 'image';
+      selectedSkinImage = image;
+      selectedGalleryImages = [];
     });
 
-    scrollToAssistantStart();
-
-    final result = await ChatService.sendSkinAnalysisMessage(
-      chatId: chatIdForRequest,
-      imageFile: image,
-    );
-
-    final assistantText =
-        (result["assistantText"] ?? "").toString().trim();
-
-    final productsJson =
-        result["products"] is List ? result["products"] as List : [];
-
-    final products = productsJson
-        .map((p) => Product.fromJson(Map<String, dynamic>.from(p)))
-        .toList();
-
-    final actions = result["actions"] is List
-        ? List<String>.from(result["actions"])
-        : <String>[];
-
-    if (!mounted) return;
-
-    setState(() {
-      messages.add(
-        ChatMessage(
-          text: assistantText.isNotEmpty
-              ? assistantText
-              : "Cilt görünümüne uygun bakım önerileri hazırladım.",
-          isUser: false,
-          products: products,
-          actions: actions,
-        ),
-      );
-    });
-
-    scrollToAssistantStart();
-    await loadChatHistory();
-    await saveChatLastSeen(chatIdForRequest);
+    inputFocusNode.requestFocus();
   } catch (e) {
-    debugPrint("SKIN ANALYSIS ERROR: $e");
+    debugPrint("SKIN CAMERA PICK ERROR: $e");
 
     if (!mounted) return;
 
     setState(() {
       messages.add(
         ChatMessage(
-          text: "Cilt analizinde bir sorun oldu. Daha net ışıkta tekrar deneyebilirsin.",
+          text: "Cilt analizi için kamera açılırken bir sorun oldu. Tekrar deneyebilirsin.",
           isUser: false,
         ),
       );
-    });
-  } finally {
-    if (!mounted) return;
-
-    setState(() {
-      loading = false;
-      loadingMode = 'products';
     });
   }
 }
@@ -1062,6 +1003,80 @@ setState(() {
     return;
   }
 
+  if (selectedSkinImage != null) {
+  try {
+    String chatIdForRequest = currentChatId;
+
+    if (chatIdForRequest.isEmpty) {
+      await createNewChatIfNeeded("Cilt analizi");
+      chatIdForRequest = currentChatId;
+    }
+
+    final pickedImage = selectedSkinImage!;
+
+    if (!mounted) return;
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: query,
+          isUser: true,
+          galleryImages: [pickedImage],
+        ),
+      );
+
+      controller.clear();
+      selectedSkinImage = null;
+    });
+
+    scrollToAssistantStart();
+
+    final result = await ChatService.sendSkinAnalysisMessage(
+      chatId: chatIdForRequest,
+      imageFile: pickedImage,
+    );
+
+    final assistantText =
+        (result["assistantText"] ?? "").toString().trim();
+
+    if (!mounted) return;
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text: assistantText,
+          isUser: false,
+        ),
+      );
+    });
+
+    await loadChatHistory();
+    await saveChatLastSeen(chatIdForRequest);
+  } catch (e) {
+    debugPrint("SKIN ANALYSIS SEND ERROR: $e");
+
+    if (!mounted) return;
+
+    setState(() {
+      messages.add(
+        ChatMessage(
+          text:
+              "Cilt analizi sırasında bir sorun oluştu. Tekrar deneyebilirsin.",
+          isUser: false,
+        ),
+      );
+    });
+  } finally {
+    if (!mounted) return;
+
+    setState(() {
+      loading = false;
+    });
+  }
+
+  return;
+}
+
  if (query.isEmpty) return;
 
 final normalizedQuery = query
@@ -1446,11 +1461,7 @@ Widget buildMessageBubble(ChatMessage message) {
         maxWidth: MediaQuery.of(context).size.width * 0.82,
       ),
       decoration: BoxDecoration(
-        color: isUser
-    ? ((hasLocalImages || hasSavedImages)
-        ? const Color(0xFF7C6BFF).withOpacity(0.12)
-        : userBubbleColor)
-    : assistantBubbleColor,
+        color: isUser ? userBubbleColor : assistantBubbleColor,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(20),
           topRight: const Radius.circular(20),
@@ -3756,7 +3767,7 @@ if (selectedProductContext != null)
     },
   ),
 
-if (selectedGalleryImages.isNotEmpty)
+if (selectedGalleryImages.isNotEmpty || selectedSkinImage != null)
   Container(
     width: double.infinity,
     margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
@@ -3777,84 +3788,154 @@ if (selectedGalleryImages.isNotEmpty)
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
-            children: selectedGalleryImages.asMap().entries.map((entry) {
-              final index = entry.key;
-              final image = entry.value;
+            children: [
+  ...selectedGalleryImages.asMap().entries.map((entry) {
+    final index = entry.key;
+    final image = entry.value;
 
-              final double size =
-                  selectedGalleryImages.length == 1 ? 74 : 62;
+    final double size =
+        selectedGalleryImages.length == 1 ? 74 : 62;
 
-              return Padding(
-                padding: EdgeInsets.only(
-                  right: index == selectedGalleryImages.length - 1 ? 0 : 8,
+    return Padding(
+      padding: EdgeInsets.only(
+        right: index == selectedGalleryImages.length - 1 ? 0 : 8,
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: size,
-                      height: size,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: FutureBuilder<Uint8List>(
-                          future: image.readAsBytes(),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) {
-                              return Container(
-                                color: Colors.grey.shade100,
-                                child: const Icon(Icons.image_outlined),
-                              );
-                            }
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: FutureBuilder<Uint8List>(
+                future: image.readAsBytes(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return Container(
+                      color: Colors.grey.shade100,
+                      child: const Icon(Icons.image_outlined),
+                    );
+                  }
 
-                            return Image.memory(
-                              snapshot.data!,
-                              fit: BoxFit.cover,
-                            );
-                          },
-                        ),
-                      ),
+                  return GestureDetector(
+                    onTap: () => openImagePreview(snapshot.data!),
+                    child: Image.memory(
+                      snapshot.data!,
+                      fit: BoxFit.cover,
                     ),
-                    Positioned(
-                      top: -6,
-                      right: -6,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            selectedGalleryImages.removeAt(index);
-                          });
-                        },
-                        child: Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: Colors.black87,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  );
+                },
+              ),
+            ),
+          ),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  selectedGalleryImages.removeAt(index);
+                });
+              },
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.black87,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
                 ),
-              );
-            }).toList(),
+                child: const Icon(
+                  Icons.close_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }),
+
+  if (selectedSkinImage != null)
+    FutureBuilder<Uint8List>(
+      future: selectedSkinImage!.readAsBytes(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              GestureDetector(
+                onTap: () => openImagePreview(snapshot.data!),
+                child: Container(
+                  width: 74,
+                  height: 74,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.pink.withOpacity(0.25),
+                    ),
+                    color: Colors.white,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.memory(
+                      snapshot.data!,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: -6,
+                right: -6,
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      selectedSkinImage = null;
+                    });
+                  },
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+],
           ),
         ),
       ],
