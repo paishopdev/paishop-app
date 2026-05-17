@@ -1399,6 +1399,30 @@ Future<void> sendQuickAction(String action) async {
   );
 }
 
+void openImagePreview(Uint8List bytes) {
+  showDialog(
+    context: context,
+    barrierColor: Colors.black.withOpacity(0.92),
+    builder: (_) {
+      return GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Center(
+          child: InteractiveViewer(
+            minScale: 0.8,
+            maxScale: 4,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Image.memory(
+                bytes,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
 
 Widget buildMessageBubble(ChatMessage message) {
   final isUser = message.isUser;
@@ -1414,12 +1438,19 @@ Widget buildMessageBubble(ChatMessage message) {
     alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
     child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: EdgeInsets.symmetric(
+  horizontal: 14,
+  vertical: (hasLocalImages || hasSavedImages) ? 10 : 12,
+),
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.82,
       ),
       decoration: BoxDecoration(
-        color: isUser ? userBubbleColor : assistantBubbleColor,
+        color: isUser
+    ? ((hasLocalImages || hasSavedImages)
+        ? const Color(0xFF7C6BFF).withOpacity(0.12)
+        : userBubbleColor)
+    : assistantBubbleColor,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(20),
           topRight: const Radius.circular(20),
@@ -1496,12 +1527,18 @@ Widget buildMessageBubble(ChatMessage message) {
                         );
                       }
 
-                      return Image.memory(
-                        snapshot.data!,
-                        width: size,
-                        height: size,
-                        fit: BoxFit.cover,
-                      );
+                      return GestureDetector(
+  onTap: () => openImagePreview(snapshot.data!),
+  child: Hero(
+    tag: image.path,
+    child: Image.memory(
+      snapshot.data!,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+    ),
+  ),
+);
                     },
                   ),
                 );
@@ -1522,15 +1559,18 @@ Widget buildMessageBubble(ChatMessage message) {
                   final base64Part = img.contains(',') ? img.split(',').last : img;
                   final bytes = base64Decode(base64Part);
 
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.memory(
-                      bytes,
-                      width: size,
-                      height: size,
-                      fit: BoxFit.cover,
-                    ),
-                  );
+                  return GestureDetector(
+  onTap: () => openImagePreview(bytes),
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(14),
+    child: Image.memory(
+      bytes,
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+    ),
+  ),
+);
                 } catch (_) {
                   return Container(
                     width: size,
