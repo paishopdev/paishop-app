@@ -1461,20 +1461,26 @@ Widget buildMessageBubble(ChatMessage message) {
         maxWidth: MediaQuery.of(context).size.width * 0.82,
       ),
       decoration: BoxDecoration(
-        color: isUser ? userBubbleColor : assistantBubbleColor,
+        color: isUser && (hasLocalImages || hasSavedImages)
+    ? Colors.transparent
+    : isUser
+        ? userBubbleColor
+        : assistantBubbleColor,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(20),
           topRight: const Radius.circular(20),
           bottomLeft: Radius.circular(isUser ? 20 : 8),
           bottomRight: Radius.circular(isUser ? 8 : 20),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: isUser && (hasLocalImages || hasSavedImages)
+    ? []
+    : [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        ),
+      ],
         border: isUser ? null : Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
@@ -1555,58 +1561,78 @@ Widget buildMessageBubble(ChatMessage message) {
                 );
               }).toList(),
             ),
-            if (hasText || hasSavedImages) const SizedBox(height: 10),
-          ],
+          if (hasText || hasSavedImages) const SizedBox(height: 10),
+],
 
-          if (isUser && hasSavedImages) ...[
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 8,
-              runSpacing: 8,
-              children: savedImages.map((img) {
-                final double size = savedImages.length == 1 ? 128 : 82;
+if (isUser && hasSavedImages) ...[
+  Wrap(
+    alignment: WrapAlignment.end,
+    spacing: 8,
+    runSpacing: 8,
+    children: savedImages.map((img) {
+      final double size = savedImages.length == 1 ? 128 : 82;
 
-                try {
-                  final base64Part = img.contains(',') ? img.split(',').last : img;
-                  final bytes = base64Decode(base64Part);
+      try {
+        final base64Part =
+            img.contains(',') ? img.split(',').last : img;
 
-                  return GestureDetector(
-  onTap: () => openImagePreview(bytes),
-  child: ClipRRect(
-    borderRadius: BorderRadius.circular(14),
-    child: Image.memory(
-      bytes,
-      width: size,
-      height: size,
-      fit: BoxFit.cover,
+        final bytes = base64Decode(base64Part);
+
+        return GestureDetector(
+          onTap: () => openImagePreview(bytes),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Image.memory(
+              bytes,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+            ),
+          ),
+        );
+      } catch (_) {
+        return Container(
+          width: size,
+          height: size,
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.image_outlined),
+        );
+      }
+    }).toList(),
+  ),
+
+  if (hasText) const SizedBox(height: 8),
+],
+
+if (hasText)
+  Container(
+    margin: (isUser && hasSavedImages)
+        ? const EdgeInsets.only(top: 2)
+        : EdgeInsets.zero,
+    padding: (isUser && hasSavedImages)
+        ? const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 10,
+          )
+        : EdgeInsets.zero,
+    decoration: (isUser && hasSavedImages)
+        ? BoxDecoration(
+            color: userBubbleColor,
+            borderRadius: BorderRadius.circular(18),
+          )
+        : null,
+    child: Text(
+      message.text,
+      textAlign: isUser ? TextAlign.right : TextAlign.left,
+      style: TextStyle(
+        color: isUser ? Colors.white : Colors.black87,
+        fontSize: 15,
+        height: 1.45,
+        fontWeight: FontWeight.w400,
+      ),
     ),
   ),
-);
-                } catch (_) {
-                  return Container(
-                    width: size,
-                    height: size,
-                    color: Colors.white.withOpacity(0.18),
-                    child: const Icon(Icons.image_outlined, color: Colors.white),
-                  );
-                }
-              }).toList(),
-            ),
-            if (hasText) const SizedBox(height: 10),
-          ],
-
-          if (hasText)
-            Text(
-              message.text,
-              textAlign: isUser ? TextAlign.right : TextAlign.left,
-              style: TextStyle(
-                color: isUser ? Colors.white : Colors.black87,
-                fontSize: 15,
-                height: 1.45,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-        ],
+],
       ),
     ),
   );
