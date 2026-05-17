@@ -1616,11 +1616,16 @@ if (hasText)
           )
         : EdgeInsets.zero,
     decoration: (isUser && hasSavedImages)
-        ? BoxDecoration(
-            color: userBubbleColor,
-            borderRadius: BorderRadius.circular(18),
-          )
-        : null,
+    ? BoxDecoration(
+        color: userBubbleColor,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(18),
+          topRight: Radius.circular(18),
+          bottomLeft: Radius.circular(18),
+          bottomRight: Radius.circular(4),
+        ),
+      )
+    : null,
     child: Text(
       message.text,
       textAlign: isUser ? TextAlign.right : TextAlign.left,
