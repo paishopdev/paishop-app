@@ -17,6 +17,10 @@ mobile/build/
 mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
 
+# Android Release Keys
+mobile/android/key.properties
+mobile/android/app/*.jks
+
 # General
 .DS_Store
 Thumbs.db
