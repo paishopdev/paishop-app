@@ -994,9 +994,6 @@ Future<void> search() async {
 final query = controller.text.trim();
 if (query.isEmpty) return;
 
-setState(() {
-  loading = true;
-});
 
   if (selectedGalleryImages.isNotEmpty) {
     await sendGalleryImagesWithPrompt();
@@ -1050,7 +1047,7 @@ setState(() {
       );
     });
 
-    await loadChatHistory();
+   // await loadChatHistory();
     await saveChatLastSeen(chatIdForRequest);
   } catch (e) {
     debugPrint("SKIN ANALYSIS SEND ERROR: $e");
@@ -1115,6 +1112,20 @@ if (isFreshProductSearch && !isProductReference) {
   selectedProductContext = null;
 }
 
+setState(() {
+  messages.add(
+    ChatMessage(
+      text: query,
+      isUser: true,
+      contextTitle: selectedContextBeforeSend?.name,
+      contextImage: selectedContextBeforeSend?.image,
+    ),
+  );
+  controller.clear();
+  loading = true;
+  loadingMode = detectLoadingMode(query, selectedContextBeforeSend);
+});
+
 debugPrint("FRESH SEARCH: $isFreshProductSearch");
 debugPrint("PRODUCT REFERENCE: $isProductReference");
 debugPrint("SELECTED CONTEXT TO SEND: ${selectedContextBeforeSend?.name}");
@@ -1133,25 +1144,7 @@ setState(() {
   loadingMode = detectLoadingMode(query, selectedContextBeforeSend);
 });
 
-    if (chatIdForRequest == currentChatId) {
-  final userMessage = ChatMessage(
-    text: query,
-    isUser: true,
-    contextTitle: selectedContextBeforeSend?.name,
-    contextImage: selectedContextBeforeSend?.image,
-  );
 
-  setState(() {
-    messages.add(userMessage);
-    controller.clear();
-  });
-
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    scrollToBottom();
-  });
-}
-
-  
 
     debugPrint("QUERY TO SEND: $query");
     debugPrint("SELECTED CONTEXT BEFORE SEND: ${selectedContextBeforeSend?.name}");
@@ -1237,7 +1230,7 @@ if (isBarcodeSearch && products.isEmpty && mounted) {
 }
     }
 
-    await loadChatHistory();
+   // await loadChatHistory();
     if (chatIdForRequest == currentChatId) {
       await saveChatLastSeen(chatIdForRequest);
     }
@@ -2111,194 +2104,179 @@ Widget buildCompareColumn(Map<String, dynamic> item) {
   final platform = (item["platform"] ?? "").toString();
   final badge = (item["badge"] ?? "").toString();
   final fitFor = (item["fitFor"] ?? "").toString();
+
   final pros = item["pros"] is List
-    ? List<String>.from(item["pros"])
-    : <String>[];
+      ? List<String>.from(item["pros"])
+      : <String>[];
 
-final cons = item["cons"] is List
-    ? List<String>.from(item["cons"])
-    : <String>[];
+  final cons = item["cons"] is List
+      ? List<String>.from(item["cons"])
+      : <String>[];
 
-  return TweenAnimationBuilder<double>(
-  tween: Tween(begin: 0.96, end: 1),
-  duration: const Duration(milliseconds: 320),
-  curve: Curves.easeOutCubic,
-  builder: (context, value, child) {
-    return Transform.scale(
-      scale: value,
-      child: Opacity(
-        opacity: value,
-        child: child,
-      ),
-    );
-  },
-  child: Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-  color: Colors.white,
-  borderRadius: BorderRadius.circular(18),
-  border: Border.all(color: Colors.grey.shade200),
-
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withOpacity(0.045),
-      blurRadius: 14,
-      offset: const Offset(0, 6),
+  return Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.grey.shade200),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.045),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        ),
+      ],
     ),
-  ],
-),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 135,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: image.isNotEmpty
-                  ? Image.network(
-                      proxyImageUrl(image),
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.image_not_supported);
-                      },
-                    )
-                  : Icon(
-                      Icons.shopping_bag_outlined,
-                      color: Colors.grey.shade500,
-                    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 135,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: image.isNotEmpty
+                ? Image.network(
+                    proxyImageUrl(image),
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(Icons.image_not_supported);
+                    },
+                  )
+                : Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Colors.grey.shade500,
+                  ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 44,
+          child: Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              height: 1.22,
+              color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 44,
-            child: Text(
-              name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-                height: 1.22,
-                color: Colors.black87,
-              ),
-            ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          price.isNotEmpty ? price : "Fiyat yok",
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: primaryColor,
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
           ),
-          const SizedBox(height: 6),
+        ),
+        const SizedBox(height: 4),
+        if (platform.isNotEmpty)
           Text(
-            price.isNotEmpty ? price : "Fiyat yok",
+            platform,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: primaryColor,
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
-          if (platform.isNotEmpty)
-            Text(
-              platform,
+        const SizedBox(height: 8),
+        if (badge.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              badge,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.black87,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              style: TextStyle(
+                color: primaryColor,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
               ),
             ),
-
-            const SizedBox(height: 8),
-
-if (badge.isNotEmpty)
-  Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-    decoration: BoxDecoration(
-      color: primaryColor.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      badge,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: primaryColor,
-        fontSize: 10.5,
-        fontWeight: FontWeight.w800,
-      ),
-    ),
-  ),
-
-if (fitFor.isNotEmpty) ...[
-  const SizedBox(height: 6),
-  Text(
-    fitFor,
-    maxLines: 2,
-    overflow: TextOverflow.ellipsis,
-    style: TextStyle(
-      color: Colors.grey.shade600,
-      fontSize: 10.8,
-      height: 1.25,
-      fontWeight: FontWeight.w500,
-    ),
-  ),
-],
-if (pros.isNotEmpty) ...[
-  const SizedBox(height: 8),
-  ...pros.take(1).map(
-    (e) => Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.check_circle_outline, size: 13, color: Colors.green),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            e,
-            maxLines: 1,
+          ),
+        if (fitFor.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            fitFor,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+              fontSize: 10.8,
+              height: 1.25,
+              fontWeight: FontWeight.w500,
             ),
           ),
-        ),
-      ],
-    ),
-  ),
-],
-
-if (cons.isNotEmpty) ...[
-  const SizedBox(height: 5),
-  ...cons.take(1).map(
-    (e) => Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.info_outline, size: 13, color: Colors.orange),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Text(
-            e,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    ),
-  ),
-],
         ],
-      ),
-    ));
+        if (pros.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          ...pros.take(1).map(
+            (e) => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.check_circle_outline,
+                    size: 13, color: Colors.green),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    e,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (cons.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          ...cons.take(1).map(
+            (e) => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.info_outline,
+                    size: 13, color: Colors.orange),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    e,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
 }
 
 List<Widget> buildComparisonDetails(
@@ -3020,21 +2998,7 @@ Widget buildSellerComparisonCard(Map<String, dynamic> data) {
   );
 }
 Widget animatedAppear(Widget child, {int delayMs = 0}) {
-  return TweenAnimationBuilder<double>(
-    tween: Tween(begin: 0, end: 1),
-    duration: Duration(milliseconds: 320 + delayMs),
-    curve: Curves.easeOutCubic,
-    builder: (context, value, child) {
-      return Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, 18 * (1 - value)),
-          child: child,
-        ),
-      );
-    },
-    child: child,
-  );
+  return child;
 }
 Widget buildChatItem(ChatMessage message) {
   return Column(
@@ -4195,35 +4159,21 @@ class _AnimatedProductListState extends State<AnimatedProductList> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: List.generate(visibleCount, (index) {
-        final product = widget.products[index];
+Widget build(BuildContext context) {
+  return Column(
+    children: List.generate(visibleCount, (index) {
+      final product = widget.products[index];
 
-        return TweenAnimationBuilder<double>(
-          key: ValueKey('${product.link}-$index'),
-          tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 420),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return Opacity(
-              opacity: value,
-              child: Transform.translate(
-                offset: Offset(0, -28 * (1 - value)),
-                child: child,
-              ),
-            );
-          },
-          child: ProductCard(
-            product: product,
-            isFavorite: widget.favoriteLinks.contains(product.link),
-            onFavorite: () => widget.onFavorite(product),
-            onAskAboutProduct: () => widget.onAskAboutProduct(product),
-          ),
-        );
-      }),
-    );
-  }
+      return ProductCard(
+        key: ValueKey('${product.link}-$index'),
+        product: product,
+        isFavorite: widget.favoriteLinks.contains(product.link),
+        onFavorite: () => widget.onFavorite(product),
+        onAskAboutProduct: () => widget.onAskAboutProduct(product),
+      );
+    }),
+  );
+}
 }
 class ProductSkeletonLoading extends StatefulWidget {
   final String mode;
