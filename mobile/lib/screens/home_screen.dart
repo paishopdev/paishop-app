@@ -911,7 +911,7 @@ setState(() {
       if (mounted && Navigator.canPop(context)) {
   Navigator.pop(context);
 }
-      scrollToBottom();
+      
       await saveChatLastSeen(chatItem.id);
     } catch (e) {
       debugPrint(e.toString());
@@ -1029,7 +1029,7 @@ setState(() {
       selectedSkinImage = null;
     });
 
-    scrollToAssistantStart();
+    
 
     final result = await ChatService.sendSkinAnalysisMessage(
       chatId: chatIdForRequest,
@@ -1134,20 +1134,24 @@ setState(() {
 });
 
     if (chatIdForRequest == currentChatId) {
-      setState(() {
-        messages.add(
-          ChatMessage(
-            text: query,
-            isUser: true,
-            contextTitle: selectedContextBeforeSend?.name,
-            contextImage: selectedContextBeforeSend?.image,
-          ),
-        );
-        controller.clear();
-      });
-    }
+  final userMessage = ChatMessage(
+    text: query,
+    isUser: true,
+    contextTitle: selectedContextBeforeSend?.name,
+    contextImage: selectedContextBeforeSend?.image,
+  );
 
+  setState(() {
+    messages.add(userMessage);
+    controller.clear();
+  });
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     scrollToBottom();
+  });
+}
+
+  
 
     debugPrint("QUERY TO SEND: $query");
     debugPrint("SELECTED CONTEXT BEFORE SEND: ${selectedContextBeforeSend?.name}");
@@ -1202,7 +1206,7 @@ setState(() {
   sellerComparison: sellerComparison,
 );
 
-scrollToAssistantStart();
+
 
 if (isBarcodeSearch && products.isEmpty && mounted) {
   final shouldUseCamera = await showDialog<bool>(
